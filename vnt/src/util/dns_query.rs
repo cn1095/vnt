@@ -120,6 +120,30 @@ pub fn dns_query_all(
                     }
                     continue;
                 }
+                // 新增的 Location 查询
+                match location_dns(domain, name_server, default_interface) {
+                    Ok(Some(location)) => {
+                        if location.starts_with("http://") || location.starts_with("https://") {
+                            let stripped = location
+                                .strip_prefix("http://")
+                                .or_else(|| location.strip_prefix("https://"))
+                                .unwrap()
+                                .to_string();
+                            return Ok(vec![SocketAddr::from_str(&stripped)?]);
+                        } else {
+                            return Ok(vec![SocketAddr::from_str(&location)?]);
+                        }
+                    }
+                    Err(e) => {
+                        if let Some(err) = &mut err {
+                            *err = anyhow::anyhow!("{} {}", err, e);
+                        } else {
+                            err.replace(anyhow::anyhow!("{}", e));
+                        }
+                    }
+                    _ => {} // 如果 Location 结果为 None，则继续后续查询
+                }
+                
                 let end_index = domain
                     .rfind(':')
                     .with_context(|| format!("{:?} not port", domain))?;
@@ -175,6 +199,43 @@ pub fn dns_query_all(
                 Err(e)
             } else {
                 Err(anyhow::anyhow!("DNS query failed {:?}", domain))
+            }
+        }
+    }
+}
+
+pub fn location_dns(
+    domain: &str,
+    name_server: String,
+    default_interface: &LocalInterface,
+) -> anyhow::Result<Option<String>> {
+    let name_server: SocketAddr = name_server.parse()?;
+    let udp = bind_udp(name_server, default_interface)?;
+    let mut buf = [0; 65536];
+    let mut attempts = 0; // 记录重试次数
+    let max_retries = 3; // 最大重试次数
+
+    loop {
+        match query(&udp, domain, name_server, QueryType::LOC, &mut buf) {
+            Ok(message) => {
+                for record in message.answers {
+                    if let RData::LOC(location) = record.data {
+                        return Ok(Some(location.to_string()));
+                    }
+                }
+                // 如果没有找到有效的 LOC 记录
+                return Ok(None);
+            }
+            Err(e) => {
+                attempts += 1;
+                if attempts >= max_retries {
+                    return Err(e).with_context(|| {
+                        format!(
+                            "第 {} 次查询域名 {:?} 失败， dns 服务器 {:?}",
+                            attempts, domain, name_server
+                        )
+                    });
+                }
             }
         }
     }
