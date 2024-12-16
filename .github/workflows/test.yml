@@ -1,4 +1,4 @@
-name: 编译自定义模块的vnt-cli
+name: 编译重定向的vnt-cli
 
 on:
   workflow_dispatch:
