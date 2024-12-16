@@ -228,7 +228,6 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
                 return Ok(Some(trimmed_location));
             }
         }
-        Ok(None)
     }
 
     // 非重定向状态码
