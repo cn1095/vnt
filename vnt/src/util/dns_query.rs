@@ -4,7 +4,6 @@ use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs, UdpSocket};
 use std::str::FromStr;
 use std::time::Duration;
 use std::{io, thread};
-use std::fmt;
 
 use crate::channel::socket::LocalInterface;
 use anyhow::Context;
