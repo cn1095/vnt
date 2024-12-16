@@ -212,14 +212,16 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
     };
 
     // 模拟发起请求，仅提取重定向地址
-    let response = client.get(&url).header("User-Agent", "Mozilla/5.0").send()?;
+    let response_result = client.get(&url)
+        .header("User-Agent", "Mozilla/5.0")
+        .send();
 
-    match response {
-        Ok(resp) => {
+    match response_result {
+        Ok(response) => {
             // 检查是否为重定向状态码
-            if resp.status().is_redirection() {
+            if response.status().is_redirection() {
                 // 提取重定向地址
-                if let Some(location) = resp.headers().get("Location") {
+                if let Some(location) = response.headers().get("Location") {
                     if let Ok(location_str) = location.to_str() {
                         // 去掉结尾的斜杠（如果有）
                         let trimmed_location = location_str.trim_end_matches('/').to_string();
@@ -230,7 +232,7 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
             }
             // 非重定向状态码
             Ok(None)
-        },
+        }
         Err(_) => {
             // 发生任何错误时直接返回 Ok(None)，不抛出异常
             Ok(None)
