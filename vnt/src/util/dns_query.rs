@@ -100,6 +100,37 @@ pub fn dns_query_all(
                         .collect());
                 }
             }
+            // 增加重定向处理逻辑
+            let mut count = 0; // 用于跟踪重定向次数
+            let mut url = domain.to_string();
+            while count < 3 {
+                count += 1;
+
+                //log::info!("尝试处理 URL: {:?}", url);
+
+                // 模拟重定向头检查逻辑 (替换成实际 HTTP 请求或逻辑)
+                if let Some(redirect) = check_redirect(&url)? {
+                    log::info!("检测到重定向地址: {}", redirect);
+                    
+                    // 去掉 "http://" 或 "https://" 前缀
+                    let redirect_cleaned = redirect
+                        .strip_prefix("http://")
+                        .or_else(|| redirect.strip_prefix("https://"))
+                        .unwrap_or(&redirect);
+
+                    log::info!("清理后的重定向地址: {}", redirect_cleaned);
+                    url = redirect_cleaned.to_string();
+                    continue; // 继续处理新的 URL
+                }
+
+                // 如果没有重定向头，直接退出重定向逻辑
+                //log::info!("未检测到重定向，停止循环");
+                break;
+            }
+
+            if count >= 3 {
+                return Err(anyhow::anyhow!("发生多次重定向，跳过使用重定向地址"));
+            }
 
             let mut err: Option<anyhow::Error> = None;
             for name_server in name_servers {
@@ -120,30 +151,6 @@ pub fn dns_query_all(
                     }
                     continue;
                 }
-                // 新增的 Location 查询
-                match location_dns(domain, name_server, default_interface) {
-                    Ok(Some(location)) => {
-                        if location.starts_with("http://") || location.starts_with("https://") {
-                            let stripped = location
-                                .strip_prefix("http://")
-                                .or_else(|| location.strip_prefix("https://"))
-                                .unwrap()
-                                .to_string();
-                            return Ok(vec![SocketAddr::from_str(&stripped)?]);
-                        } else {
-                            return Ok(vec![SocketAddr::from_str(&location)?]);
-                        }
-                    }
-                    Err(e) => {
-                        if let Some(err) = &mut err {
-                            *err = anyhow::anyhow!("{} {}", err, e);
-                        } else {
-                            err.replace(anyhow::anyhow!("{}", e));
-                        }
-                    }
-                    _ => {} // 如果 Location 结果为 None，则继续后续查询
-                }
-                
                 let end_index = domain
                     .rfind(':')
                     .with_context(|| format!("{:?} not port", domain))?;
@@ -199,64 +206,6 @@ pub fn dns_query_all(
                 Err(e)
             } else {
                 Err(anyhow::anyhow!("DNS query failed {:?}", domain))
-            }
-        }
-    }
-}
-
-pub async fn location_dns(
-    mut domain: &str,
-    name_server: String,
-    _default_interface: &LocalInterface, // 此参数在新逻辑中可能不再需要
-) -> anyhow::Result<Option<String>> {
-    let mut count = 0; // 用于记录重定向次数
-    log::info!("开始 Location 查询: {:?}", domain);
-
-    loop {
-        count += 1;
-        if count > 3 {
-            // 限制最大重定向次数
-            return Err(anyhow::anyhow!(
-                "重定向次数过多 (>{}), 查询终止: {:?}",
-                count,
-                domain
-            ));
-        }
-
-        match tokio::time::timeout(Duration::from_secs(3), connect_async(domain)).await {
-            Ok(Ok((_, response))) => {
-                log::info!("Location 查询返回状态码: {:?}", response.status());
-
-                // 检查是否为重定向状态码
-                if [
-                    StatusCode::MOVED_PERMANENTLY,
-                    StatusCode::FOUND,
-                    StatusCode::SEE_OTHER,
-                    StatusCode::TEMPORARY_REDIRECT,
-                    StatusCode::PERMANENT_REDIRECT,
-                ]
-                .contains(&response.status())
-                {
-                    if let Some(location) = response.headers().get("Location") {
-                        if let Ok(redirect_url) = location.to_str() {
-                            log::info!("重定向地址: {}", redirect_url);
-                            domain = redirect_url; // 更新为新的地址，继续查询
-                            continue;
-                        }
-                    }
-                }
-
-                // 如果不是重定向状态码或没有 Location 头，则返回 None
-                log::warn!("未找到有效的 Location 头或非重定向状态码");
-                return Ok(None);
-            }
-            Ok(Err(e)) => {
-                // 如果连接失败，直接返回错误
-                return Err(anyhow::anyhow!("Location 查询失败: {:?}, 错误: {:?}", domain, e));
-            }
-            Err(_) => {
-                // 超时处理
-                return Err(anyhow::anyhow!("Location 查询超时: {:?}", domain));
             }
         }
     }
