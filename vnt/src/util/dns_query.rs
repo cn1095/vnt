@@ -204,38 +204,59 @@ pub fn dns_query_all(
     }
 }
 
-pub fn location_dns(
-    domain: &str,
+pub async fn location_dns(
+    mut domain: &str,
     name_server: String,
-    default_interface: &LocalInterface,
+    _default_interface: &LocalInterface, // 此参数在新逻辑中可能不再需要
 ) -> anyhow::Result<Option<String>> {
-    let name_server: SocketAddr = name_server.parse()?;
-    let udp = bind_udp(name_server, default_interface)?;
-    let mut buf = [0; 65536];
-    let mut attempts = 0; // 记录重试次数
-    let max_retries = 3; // 最大重试次数
+    let mut count = 0; // 用于记录重定向次数
+    log::info!("开始 Location 查询: {:?}", domain);
 
     loop {
-        match query(&udp, domain, name_server, QueryType::LOC, &mut buf) {
-            Ok(message) => {
-                for record in message.answers {
-                    if let RData::LOC(location) = record.data {
-                        return Ok(Some(location.to_string()));
+        count += 1;
+        if count > 3 {
+            // 限制最大重定向次数
+            return Err(anyhow::anyhow!(
+                "重定向次数过多 (>{}), 查询终止: {:?}",
+                count,
+                domain
+            ));
+        }
+
+        match tokio::time::timeout(Duration::from_secs(3), connect_async(domain)).await {
+            Ok(Ok((_, response))) => {
+                log::info!("Location 查询返回状态码: {:?}", response.status());
+
+                // 检查是否为重定向状态码
+                if [
+                    StatusCode::MOVED_PERMANENTLY,
+                    StatusCode::FOUND,
+                    StatusCode::SEE_OTHER,
+                    StatusCode::TEMPORARY_REDIRECT,
+                    StatusCode::PERMANENT_REDIRECT,
+                ]
+                .contains(&response.status())
+                {
+                    if let Some(location) = response.headers().get("Location") {
+                        if let Ok(redirect_url) = location.to_str() {
+                            log::info!("重定向地址: {}", redirect_url);
+                            domain = redirect_url; // 更新为新的地址，继续查询
+                            continue;
+                        }
                     }
                 }
-                // 如果没有找到有效的 LOC 记录
+
+                // 如果不是重定向状态码或没有 Location 头，则返回 None
+                log::warn!("未找到有效的 Location 头或非重定向状态码");
                 return Ok(None);
             }
-            Err(e) => {
-                attempts += 1;
-                if attempts >= max_retries {
-                    return Err(e).with_context(|| {
-                        format!(
-                            "第 {} 次查询域名 {:?} 失败， dns 服务器 {:?}",
-                            attempts, domain, name_server
-                        )
-                    });
-                }
+            Ok(Err(e)) => {
+                // 如果连接失败，直接返回错误
+                return Err(anyhow::anyhow!("Location 查询失败: {:?}, 错误: {:?}", domain, e));
+            }
+            Err(_) => {
+                // 超时处理
+                return Err(anyhow::anyhow!("Location 查询超时: {:?}", domain));
             }
         }
     }
