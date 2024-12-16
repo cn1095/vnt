@@ -100,37 +100,6 @@ pub fn dns_query_all(
                         .collect());
                 }
             }
-            // 增加重定向处理逻辑
-            let mut count = 0; // 用于跟踪重定向次数
-            let mut url = domain.to_string();
-            while count < 3 {
-                count += 1;
-
-                //log::info!("尝试处理 URL: {:?}", url);
-
-                // 模拟重定向头检查逻辑 (替换成实际 HTTP 请求或逻辑)
-                if let Some(redirect) = check_redirect(&url)? {
-                    log::info!("检测到重定向地址: {}", redirect);
-                    
-                    // 去掉 "http://" 或 "https://" 前缀
-                    let redirect_cleaned = redirect
-                        .strip_prefix("http://")
-                        .or_else(|| redirect.strip_prefix("https://"))
-                        .unwrap_or(&redirect);
-
-                    log::info!("清理后的重定向地址: {}", redirect_cleaned);
-                    url = redirect_cleaned.to_string();
-                    continue; // 继续处理新的 URL
-                }
-
-                // 如果没有重定向头，直接退出重定向逻辑
-                //log::info!("未检测到重定向，停止循环");
-                break;
-            }
-
-            if count >= 3 {
-                return Err(anyhow::anyhow!("发生多次重定向，跳过使用重定向地址"));
-            }
 
             let mut err: Option<anyhow::Error> = None;
             for name_server in name_servers {
@@ -150,6 +119,21 @@ pub fn dns_query_all(
                         }
                     }
                     continue;
+                }
+                // 新增逻辑：处理可能的重定向地址
+                let mut processed_domain = domain.to_string();
+                if let Some(redirected_url) = check_for_redirect(&processed_domain)? {
+                    log::info!("检测到重定向地址：{}", redirected_url);
+
+                    // 去掉 URL 开头的协议部分
+                    domain = remove_http_prefix(&redirected_url);
+                    log::info!("去掉协议后的地址：{}", domain);
+
+                    // 检查是否为 IP 和端口组合
+                    if let Ok(socket_addr) = SocketAddr::from_str(&domain) {
+                        log::info!("重定向地址包含 IP 和端口，直接返回：{}", socket_addr);
+                        return Ok(vec![socket_addr]);
+                    }
                 }
                 let end_index = domain
                     .rfind(':')
@@ -209,6 +193,83 @@ pub fn dns_query_all(
             }
         }
     }
+}
+
+/// 检查是否有重定向地址，最多允许 3 次重定向
+fn check_for_redirect(mut domain: &str) -> anyhow::Result<Option<String>> {
+    use reqwest::{Client, StatusCode};
+    use std::time::Duration;
+
+    // 创建 HTTP 客户端
+    let client = Client::builder()
+        .timeout(Duration::from_secs(3)) // 设置超时时间为 3 秒
+        .redirect(reqwest::redirect::Policy::none()) // 禁止自动重定向，手动处理
+        .build()?;
+
+    let mut redirect_count = 0; // 重定向次数计数器
+
+    log::info!("开始检查重定向，初始 URL: {}", domain);
+
+    // 循环检查重定向地址
+    while redirect_count < 3 {
+        // 拼接为完整的 HTTP URL，如果没有协议则默认加 http://
+        let url = if domain.starts_with("http://") || domain.starts_with("https://") {
+            domain.to_string()
+        } else {
+            format!("http://{}", domain)
+        };
+
+        log::info!("尝试访问 URL: {}", url);
+
+        // 发送 GET 请求
+        let response = client.get(&url).send()?;
+
+        // 检查响应状态码是否为重定向
+        if response.status() == StatusCode::MOVED_PERMANENTLY
+            || response.status() == StatusCode::FOUND
+            || response.status() == StatusCode::SEE_OTHER
+            || response.status() == StatusCode::TEMPORARY_REDIRECT
+            || response.status() == StatusCode::PERMANENT_REDIRECT
+        {
+            redirect_count += 1;
+            log::info!(
+                "检测到重定向状态码: {}，当前重定向次数: {}",
+                response.status(),
+                redirect_count
+            );
+
+            // 获取 Location 头部字段的值
+            if let Some(location) = response.headers().get("Location") {
+                if let Ok(location_str) = location.to_str() {
+                    log::info!("重定向地址: {}", location_str);
+                    domain = location_str; // 更新为新的重定向地址
+                    continue; // 继续检查新的地址
+                }
+            }
+            // 如果 Location 字段不存在，退出循环
+            break;
+        }
+
+        // 如果状态码不是重定向，返回 None
+        log::info!("没有检测到重定向状态码，退出检查");
+        return Ok(None);
+    }
+
+    if redirect_count >= 3 {
+        // 如果重定向次数超过最大限制，返回错误
+        log::error!("重定向次数超过限制，终止操作");
+        return Err(anyhow::anyhow!("重定向次数超过最大限制（3 次）"));
+    }
+
+    // 最终返回检测到的重定向地址
+    Ok(Some(domain.to_string()))
+}
+
+/// 去掉 http:// 或 https:// 前缀
+fn remove_http_prefix(url: &str) -> String {
+    url.trim_start_matches("http://")
+        .trim_start_matches("https://")
+        .to_string()
 }
 
 fn query<'a>(
