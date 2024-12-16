@@ -85,6 +85,25 @@ pub fn dns_query_all(
     match SocketAddr::from_str(domain) {
         Ok(addr) => Ok(vec![addr]),
         Err(_) => {
+                // 新增逻辑：处理可能的重定向地址
+                let mut processed_domain = domain.to_string(); // 创建可变的域名字符串
+                // 检查重定向地址
+                if let Some(redirected_url) = check_for_redirect(&processed_domain)? {
+                    log::info!("检测到重定向地址：{}", redirected_url);
+
+                    // 去掉 URL 开头的协议部分
+                    let stripped_domain = remove_http_prefix(&redirected_url);
+                    log::info!("去掉协议后的地址：{}", stripped_domain);
+
+                    // 检查是否为 IP 和端口组合
+                    if let Ok(socket_addr) = SocketAddr::from_str(&stripped_domain) {
+                        log::info!("重定向地址包含 IP 和端口，直接返回：{}", socket_addr);
+                        return Ok(vec![socket_addr]); // 如果是 IP 和端口格式，直接返回结果
+                    } else {
+                        // 如果不是 IP 和端口格式，则无法使用重定向
+                        log::info!("重定向地址仅支持 IP 和端口，当前：{}", stripped_domain);
+                    }
+                }
             let txt_domain = domain
                 .to_lowercase()
                 .strip_prefix("txt:")
@@ -120,26 +139,7 @@ pub fn dns_query_all(
                     }
                     continue;
                 }
-                // 新增逻辑：处理可能的重定向地址
-                let mut processed_domain = domain.to_string(); // 创建可变的域名字符串
-
-                // 检查重定向地址
-                if let Some(redirected_url) = check_for_redirect(&processed_domain)? {
-                    log::info!("检测到重定向地址：{}", redirected_url);
-
-                    // 去掉 URL 开头的协议部分
-                    let stripped_domain = remove_http_prefix(&redirected_url);
-                    log::info!("去掉协议后的地址：{}", stripped_domain);
-
-                    // 检查是否为 IP 和端口组合
-                    if let Ok(socket_addr) = SocketAddr::from_str(&stripped_domain) {
-                        log::info!("重定向地址包含 IP 和端口，直接返回：{}", socket_addr);
-                        return Ok(vec![socket_addr]); // 如果是 IP 和端口格式，直接返回结果
-                    } else {
-                        // 如果不是 IP 和端口格式，则无法使用重定向
-                        log::info!("重定向地址仅支持 IP 和端口，当前：{}", stripped_domain);
-                    }
-                }
+                
                 let end_index = domain
                     .rfind(':')
                     .with_context(|| format!("{:?} not port", domain))?;
