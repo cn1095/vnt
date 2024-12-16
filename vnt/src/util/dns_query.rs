@@ -200,7 +200,6 @@ pub fn dns_query_all(
     }
 }
 
-/// 检查是否存在重定向地址，返回 `Option<String>`（重定向的地址）或 `None`。
 fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
     use reqwest::{blocking::Client, StatusCode};
 
@@ -209,48 +208,41 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
         .redirect(reqwest::redirect::Policy::none()) // 禁止自动重定向，手动处理
         .build()?;
 
-    let mut redirect_count = 0; // 最大重定向次数
-    let mut current_domain = domain.clone(); // 可变的域名
+    let url = if domain.starts_with("http://") || domain.starts_with("https://") {
+        domain.clone()
+    } else {
+        format!("http://{}", domain)
+    };
 
-    while redirect_count < 3 {
-        let url = if current_domain.starts_with("http://") || current_domain.starts_with("https://") {
-            current_domain.clone()
-        } else {
-            format!("http://{}", current_domain)
-        };
+    log::info!("尝试访问 URL（只检查重定向）: {}", url);
 
-        log::info!("尝试访问 URL: {}", url);
+    // 模拟发起请求，仅提取重定向地址
+    let response = client.get(&url).header("User-Agent", "Mozilla/5.0").send()?;
 
-        let response = client.get(&url).send()?;
+    // 检查是否为重定向状态码
+    if response.status().is_redirection() {
+        log::info!("检测到重定向状态码: {}", response.status());
 
-        // 检查是否有重定向
-        if response.status().is_redirection() {
-            redirect_count += 1;
-            log::info!("检测到重定向状态码: {}", response.status());
+        // 提取重定向地址
+        if let Some(location) = response.headers().get("Location") {
+            if let Ok(location_str) = location.to_str() {
+                log::info!("重定向地址: {}", location_str);
 
-            // 提取重定向地址
-            if let Some(location) = response.headers().get("Location") {
-                if let Ok(location_str) = location.to_str() {
-                    log::info!("重定向地址: {}", location_str);
-                    current_domain = location_str.to_string();
-                    continue; // 继续处理新的地址
-                }
+                // 去掉结尾的斜杠（如果有）
+                let trimmed_location = location_str.trim_end_matches('/').to_string();
+                log::info!("去掉结尾斜杠后的地址: {}", trimmed_location);
+
+                // 返回重定向地址
+                return Ok(Some(trimmed_location));
             }
-
-            // 没有 Location 头时，退出检查
-            break;
         }
 
-        // 如果不是重定向，直接返回 None
-        return Ok(None);
+        log::error!("未找到 Location 头，无法解析重定向地址");
+        return Err(anyhow::anyhow!("未找到 Location 头，无法解析重定向地址"));
     }
 
-    if redirect_count >= 3 {
-        log::error!("重定向次数超过限制（3 次）");
-        return Err(anyhow::anyhow!("重定向次数超过限制"));
-    }
-
-    Ok(Some(current_domain)) // 返回最后的重定向地址
+    // 非重定向状态码
+    Ok(None)
 }
 
 /// 去掉 http:// 或 https:// 前缀
