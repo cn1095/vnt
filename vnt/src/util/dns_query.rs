@@ -228,7 +228,7 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
                 return Ok(Some(trimmed_location));
             }
         }
-        return Err(anyhow::anyhow!("未找到 Location 头，没有解析重定向地址"));
+        Ok(None)
     }
 
     // 非重定向状态码
