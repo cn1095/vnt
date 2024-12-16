@@ -204,7 +204,6 @@ pub fn dns_query_all(
 /// 检查是否存在重定向地址，返回 `Option<String>`（重定向的地址）或 `None`。
 fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
     use reqwest::{blocking::Client, StatusCode};
-    use std::time::Duration;
 
     let client = Client::builder()
         .timeout(Duration::from_secs(3)) // 设置超时时间为 3 秒
