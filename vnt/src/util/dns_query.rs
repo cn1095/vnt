@@ -82,13 +82,12 @@ pub fn dns_query_all(
     mut name_servers: Vec<String>,
     default_interface: &LocalInterface,
 ) -> anyhow::Result<Vec<SocketAddr>> {
-    match SocketAddr::from_str(domain) {
+    let mut current_domain = domain.to_string(); // 引入可变变量存储当前域名
+    match SocketAddr::from_str(&current_domain) {
         Ok(addr) => Ok(vec![addr]),
         Err(_) => {
-                // 新增逻辑：处理可能的重定向地址
-                let processed_domain = domain.to_string(); // 创建可变的域名字符串
                 // 检查重定向地址
-                if let Some(redirected_url) = check_for_redirect(&processed_domain)? {
+                if let Some(redirected_url) = check_for_redirect(&current_domain)? {
 
                     // 去掉 URL 开头的协议部分
                     let stripped_domain = remove_http_prefix(&redirected_url);
@@ -98,11 +97,11 @@ pub fn dns_query_all(
                     if let Ok(socket_addr) = SocketAddr::from_str(&stripped_domain) {
                         return Ok(vec![socket_addr]); // 如果是 IP 和端口格式，直接返回结果
                     } else {
-                        // 如果不是 IP 和端口格式，则无法使用重定向
-                        println!("重定向地址仅支持 IP 和端口格式");
+                        // 如果不是 IP 和端口格式，则更新为重定向地址
+                        current_domain = stripped_domain;
                     }
                 }
-            let txt_domain = domain
+            let txt_domain = current_domain
                 .to_lowercase()
                 .strip_prefix("txt:")
                 .map(|v| v.to_string());
@@ -111,9 +110,9 @@ pub fn dns_query_all(
                     name_servers.push("223.5.5.5:53".into());
                     name_servers.push("114.114.114.114:53".into());
                 } else {
-                    return Ok(domain
+                    return Ok(current_domain
                         .to_socket_addrs()
-                        .with_context(|| format!("DNS query failed {:?}", domain))?
+                        .with_context(|| format!("DNS query failed {:?}", current_domain))?
                         .collect());
                 }
             }
@@ -138,12 +137,12 @@ pub fn dns_query_all(
                     continue;
                 }
                 
-                let end_index = domain
+                let end_index = current_domain
                     .rfind(':')
-                    .with_context(|| format!("{:?} not port", domain))?;
+                    .with_context(|| format!("{:?} not port", current_domain))?;
                 let host = &domain[..end_index];
                 let port = u16::from_str(&domain[end_index + 1..])
-                    .with_context(|| format!("{:?} not port", domain))?;
+                    .with_context(|| format!("{:?} not port", current_domain))?;
                 let th1 = {
                     let host = host.to_string();
                     let name_server = name_server.clone();
@@ -192,7 +191,7 @@ pub fn dns_query_all(
             if let Some(e) = err {
                 Err(e)
             } else {
-                Err(anyhow::anyhow!("DNS query failed {:?}", domain))
+                Err(anyhow::anyhow!("DNS query failed {:?}", current_domain))
             }
         }
     }
