@@ -86,7 +86,7 @@ pub fn dns_query_all(
         Ok(addr) => Ok(vec![addr]),
         Err(_) => {
                 // 新增逻辑：处理可能的重定向地址
-                let mut processed_domain = domain.to_string(); // 创建可变的域名字符串
+                let processed_domain = domain.to_string(); // 创建可变的域名字符串
                 // 检查重定向地址
                 if let Some(redirected_url) = check_for_redirect(&processed_domain)? {
 
@@ -199,7 +199,7 @@ pub fn dns_query_all(
 }
 
 fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
-    use reqwest::{blocking::Client, StatusCode};
+    use reqwest::{blocking::Client};
 
     let client = Client::builder()
         .timeout(Duration::from_secs(3)) // 设置超时时间为 3 秒
