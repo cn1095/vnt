@@ -4,7 +4,7 @@ use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs, UdpSocket};
 use std::str::FromStr;
 use std::time::Duration;
 use std::{io, thread};
-use std::fmt::Formatter;
+use std::fmt;
 
 use crate::channel::socket::LocalInterface;
 use anyhow::Context;
@@ -93,18 +93,14 @@ pub fn dns_query_all(
 
                     // 去掉 URL 开头的协议部分
                     let stripped_domain = remove_http_prefix(&redirected_url);
-                    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-                            f.write_str(&format!("检测到重定向地址：{}", self.stripped_domain))
-                    }
+                    println!("检测到重定向地址：{}", stripped_domain);
 
                     // 检查是否为 IP 和端口组合
                     if let Ok(socket_addr) = SocketAddr::from_str(&stripped_domain) {
                         return Ok(vec![socket_addr]); // 如果是 IP 和端口格式，直接返回结果
                     } else {
                         // 如果不是 IP 和端口格式，则无法使用重定向
-                        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-                            f.write_str("重定向地址仅支持 IP 和端口格式")
-                        }
+                        println!("重定向地址仅支持 IP 和端口格式");
                     }
                 }
             let txt_domain = domain
