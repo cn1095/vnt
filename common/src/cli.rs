@@ -393,11 +393,11 @@ fn get_description(key: &str, language: &str) -> String {
     .collect();
 
     if let Some(&(zh, en)) = descriptions.get(key) {
-        if language.starts_with("zh") {
-            return zh.to_string(); // 返回 String 类型
-        }
-        // 默认返回英文
-        return en.to_string(); // 返回 String 类型
+        //if language.starts_with("en") {
+            //return en.to_string(); // 返回 String 类型
+        //}
+        // 默认返回中文
+        return zh.to_string(); // 返回 String 类型
     }
     // 如果没有找到对应的键，则返回空字符串
     String::new()
