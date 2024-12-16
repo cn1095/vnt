@@ -93,7 +93,7 @@ pub fn dns_query_all(
                     // 去掉 URL 开头的协议部分
                     let stripped_domain = remove_http_prefix(&redirected_url);
                     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-                            f.write_str(&format!("检测到重定向地址：：{}", self.stripped_domain))
+                            f.write_str(&format!("检测到重定向地址：{}", self.stripped_domain))
                     }
 
                     // 检查是否为 IP 和端口组合
