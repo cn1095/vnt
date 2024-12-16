@@ -89,19 +89,21 @@ pub fn dns_query_all(
                 let mut processed_domain = domain.to_string(); // 创建可变的域名字符串
                 // 检查重定向地址
                 if let Some(redirected_url) = check_for_redirect(&processed_domain)? {
-                    log::info!("检测到重定向地址：{}", redirected_url);
 
                     // 去掉 URL 开头的协议部分
                     let stripped_domain = remove_http_prefix(&redirected_url);
-                    log::info!("去掉协议后的地址：{}", stripped_domain);
+                    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                            f.write_str(&format!("检测到重定向地址：：{}", self.stripped_domain))
+                    }
 
                     // 检查是否为 IP 和端口组合
                     if let Ok(socket_addr) = SocketAddr::from_str(&stripped_domain) {
-                        log::info!("重定向地址包含 IP 和端口，直接返回：{}", socket_addr);
                         return Ok(vec![socket_addr]); // 如果是 IP 和端口格式，直接返回结果
                     } else {
                         // 如果不是 IP 和端口格式，则无法使用重定向
-                        log::info!("重定向地址仅支持 IP 和端口，当前：{}", stripped_domain);
+                        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                            f.write_str("重定向地址仅支持 IP 和端口格式")
+                        }
                     }
                 }
             let txt_domain = domain
@@ -214,31 +216,24 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
         format!("http://{}", domain)
     };
 
-    log::info!("尝试访问 URL（只检查重定向）: {}", url);
-
     // 模拟发起请求，仅提取重定向地址
     let response = client.get(&url).header("User-Agent", "Mozilla/5.0").send()?;
 
     // 检查是否为重定向状态码
     if response.status().is_redirection() {
-        log::info!("检测到重定向状态码: {}", response.status());
 
         // 提取重定向地址
         if let Some(location) = response.headers().get("Location") {
             if let Ok(location_str) = location.to_str() {
-                log::info!("重定向地址: {}", location_str);
 
                 // 去掉结尾的斜杠（如果有）
                 let trimmed_location = location_str.trim_end_matches('/').to_string();
-                log::info!("去掉结尾斜杠后的地址: {}", trimmed_location);
 
                 // 返回重定向地址
                 return Ok(Some(trimmed_location));
             }
         }
-
-        log::error!("未找到 Location 头，无法解析重定向地址");
-        return Err(anyhow::anyhow!("未找到 Location 头，无法解析重定向地址"));
+        return Err(anyhow::anyhow!("未找到 Location 头，没有解析重定向地址"));
     }
 
     // 非重定向状态码
