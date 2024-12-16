@@ -92,7 +92,7 @@ pub fn dns_query_all(
 
                     // 去掉 URL 开头的协议部分
                     let stripped_domain = remove_http_prefix(&redirected_url);
-                    println!("检测到重定向地址：{}", stripped_domain);
+                    println!("Location：{}", stripped_domain);
 
                     // 检查是否为 IP 和端口组合
                     if let Ok(socket_addr) = SocketAddr::from_str(&stripped_domain) {
