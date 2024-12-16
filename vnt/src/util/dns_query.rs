@@ -136,9 +136,8 @@ pub fn dns_query_all(
                         log::info!("重定向地址包含 IP 和端口，直接返回：{}", socket_addr);
                         return Ok(vec![socket_addr]); // 如果是 IP 和端口格式，直接返回结果
                     } else {
-                        // 如果不是 IP 和端口格式，则更新 `domain`，供后续使用
-                        processed_domain = stripped_domain;
-                        domain = &processed_domain;
+                        // 如果不是 IP 和端口格式，则无法使用重定向
+                        log::info!("重定向地址仅支持 IP 和端口，当前：{}", stripped_domain);
                     }
                 }
                 let end_index = domain
