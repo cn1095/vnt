@@ -71,7 +71,7 @@ default = ["server_encrypt", "aes_gcm", "aes_cbc", "aes_ecb", "sm4_cbc", "chacha
 openssl = ["openssl-sys"]
 # 从源码编译
 openssl-vendored = ["openssl-sys/vendored"]
-ring-cipher = ["ring"]
+#ring-cipher = ["ring"]
 aes_cbc = ["cbc"]
 aes_ecb = ["ecb"]
 sm4_cbc = ["libsm"]
