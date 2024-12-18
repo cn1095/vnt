@@ -238,6 +238,7 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
                             let trimmed_location = location_str.trim_end_matches('/').to_string();
                             // 如果是新的重定向地址，更新 url，继续检查
                             url = trimmed_location.clone();
+                            println!("发现重定向地址: {}", url);
                             continue; // 继续下一次重定向请求
                         }
                     }
@@ -245,9 +246,11 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
                     // 如果不是重定向状态码
                     if is_redirect {
                         // 如果之前发生过重定向，则返回最终的地址
+                        println!("发现重定向地址: {}", url);
                         return Ok(Some(url));
                     } else {
                         // 如果没有经历过重定向，则返回 None
+                        println!("没有发现重定向地址");
                         return Ok(None);
                     }
                 }
