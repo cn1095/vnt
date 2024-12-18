@@ -250,13 +250,14 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
                         return Ok(Some(url));
                     } else {
                         // 如果没有经历过重定向，则返回 None
-                        println!("没有发现重定向地址");
+                        println!("没有发现重定向地址 {}", url);
                         return Ok(None);
                     }
                 }
             }
             Err(_) => {
                 // 发生任何错误时直接返回 Ok(None)，不抛出异常
+                println!("重定向地址异常 {}", url);
                 return Ok(None);
             }
         }
