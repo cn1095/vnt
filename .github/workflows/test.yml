@@ -63,12 +63,12 @@ jobs:
               armv7l-eabihf)
                 TARGET=armv7-unknown-linux-musleabihf
                 MUSL_URI=armv7l-linux-musleabihf-cross
-                NAME=vnt-cli_linux-armv7-eabi
+                NAME=vnt-cli_linux-armv7-eabihf
                 ;;
               armv7l-eabi)
                 TARGET=armv7-unknown-linux-musleabi
                 MUSL_URI=armv7m-linux-musleabi-cross
-                NAME=vnt-cli_linux-armv7-eabihf
+                NAME=vnt-cli_linux-armv7-eabi
                 ;;
               arm-eabihf)
                 TARGET=arm-unknown-linux-musleabihf
