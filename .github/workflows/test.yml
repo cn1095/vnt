@@ -6,16 +6,16 @@ on:
       repo:
         description: '请输入vntAPP源码仓库'
         required: true
-        default: 'vnt-dev/vnt'
+        default: 'cn1095/vnt'
       branch:
         description: '请输入仓库的分支或版本号，默认main分支'
         required: true
-        default: 'main'
+        default: 'Location'
       target:
         description: '请选择linux目标CPU架构'
         required: true
         type: choice
-        default: 'aarch64'
+        default: 'mipsel'
         options:
           - aarch64
           - armv7l-eabihf
