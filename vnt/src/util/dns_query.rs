@@ -86,26 +86,19 @@ pub fn dns_query_all(
     match SocketAddr::from_str(&current_domain) {
         Ok(addr) => Ok(vec![addr]),
         Err(_) => {
-            // 提取以 http: 开头的域名
-            let http_domain = current_domain
-                .to_lowercase()
-                .strip_prefix("http:")
-                .map(|v| v.to_string());
-            if let Some(domain) = http_domain.as_ref() {
-                // 检查重定向地址
-                if let Some(redirected_url) = check_for_redirect(&format!("http:{}", domain))? {
+            // 检查重定向地址
+            if let Some(redirected_url) = check_for_redirect(&current_domain)? {
 
-                    // 去掉 URL 开头的协议部分
-                    let stripped_domain = remove_http_prefix(&redirected_url);
-                    println!("Location：{}", stripped_domain);
+                // 去掉 URL 开头的协议部分
+                let stripped_domain = remove_http_prefix(&redirected_url);
+                println!("Location：{}", stripped_domain);
 
-                    // 检查是否为 IP 和端口组合
-                    if let Ok(socket_addr) = SocketAddr::from_str(&stripped_domain) {
-                        return Ok(vec![socket_addr]); // 如果是 IP 和端口格式，直接返回结果
-                    } else {
-                        // 如果不是 IP 和端口格式，则更新为重定向地址继续后续解析
-                        current_domain = stripped_domain;
-                    }
+                // 检查是否为 IP 和端口组合
+                if let Ok(socket_addr) = SocketAddr::from_str(&stripped_domain) {
+                    return Ok(vec![socket_addr]); // 如果是 IP 和端口格式，直接返回结果
+                } else {
+                    // 如果不是 IP 和端口格式，则更新为重定向地址
+                    current_domain = stripped_domain;
                 }
             }
             let txt_domain = current_domain
