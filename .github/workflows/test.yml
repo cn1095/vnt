@@ -27,7 +27,7 @@ on:
           - i686
           - x86_64
       feature:
-        description: '额外添加想要的模块，多个模块以,分隔 默认ring-cipher,wss即可'
+        description: '额外添加想要的模块，多个模块以,分隔 i686使用default'
         required: false
         default: 'ring-cipher,wss'
       upx:
@@ -68,7 +68,7 @@ jobs:
               armv7l-eabi)
                 TARGET=armv7-unknown-linux-musleabi
                 MUSL_URI=armv7m-linux-musleabi-cross
-                NAME=vnt-cli_linux-ramv7-eabihf
+                NAME=vnt-cli_linux-armv7-eabihf
                 ;;
               arm-eabihf)
                 TARGET=arm-unknown-linux-musleabihf
@@ -109,6 +109,9 @@ jobs:
             if [[ $TARGET == mips-unknown-linux-musl ]] || [[ $TARGET == mipsel-unknown-linux-musl ]] ; then
             rustup install 1.72.1
             rustup default 1.72.1
+            else
+            rustup install 1.77
+            rustup default 1.77
             fi
             sudo timedatectl set-timezone "Asia/Shanghai"
             cat >>~/.cargo/config <<EOF
