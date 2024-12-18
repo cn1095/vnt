@@ -91,7 +91,7 @@ pub fn dns_query_all(
                 .to_lowercase()
                 .strip_prefix("http:")
                 .map(|v| v.to_string());
-            if let Some(domain) = http_domain {
+            if let Some(domain) = http_domain.as_ref() {
                 // 检查重定向地址
                 if let Some(redirected_url) = check_for_redirect(&format!("http:{}", domain))? {
 
