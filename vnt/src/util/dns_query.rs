@@ -213,6 +213,7 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
     };
 
     let mut count = 0; // 重定向次数计数器
+    let mut is_redirect = false; // 标记是否经历过重定向
     loop {
         count += 1;
         if count > 3 {
@@ -229,6 +230,7 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
             Ok(response) => {
                 // 检查是否为重定向状态码
                 if response.status().is_redirection() {
+                    is_redirect = true; // 标记发生了重定向
                     // 提取重定向地址
                     if let Some(location) = response.headers().get("Location") {
                         if let Ok(location_str) = location.to_str() {
