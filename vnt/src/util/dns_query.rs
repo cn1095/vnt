@@ -236,6 +236,7 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
                             let trimmed_location = location_str.trim_end_matches('/').to_string();
                             // 如果是新的重定向地址，更新 url，继续检查
                             url = trimmed_location.clone();
+                            println!("重定向地址: {:?}", url);
                             continue; // 继续下一次重定向请求
                         }
                     }
