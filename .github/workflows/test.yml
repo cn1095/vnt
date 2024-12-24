@@ -96,7 +96,7 @@ jobs:
                 ;;
               s390x)
                 TARGET=s390x-unknown-linux-musl
-                MUSL_URI=s390x-linux-musl
+                MUSL_URI=s390x-linux-musl-cross
                 NAME=vnt-cli_linux-s390x
                 ;;
             esac
