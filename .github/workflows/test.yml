@@ -116,8 +116,17 @@ jobs:
             rustup install 1.72.1
             rustup default 1.72.1
             else
-            rustup install 1.77
-            rustup default 1.77
+            if [[ $TARGET == s390x-unknown-linux-musl ]] ; then
+               rustup toolchain install nightly-x86_64-unknown-linux-gnu
+               rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
+               RUST_LIB_SRC=$HOME/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/
+               if [[ -f $RUST_LIB_SRC/library/Cargo.lock && ! -f $RUST_LIB_SRC/Cargo.lock ]]; then 
+                 cp -f $RUST_LIB_SRC/library/Cargo.lock $RUST_LIB_SRC/Cargo.lock
+               fi
+            else
+              rustup install 1.77
+              rustup default 1.77
+            fi
             fi
             sudo timedatectl set-timezone "Asia/Shanghai"
             cat >>~/.cargo/config <<EOF
@@ -151,6 +160,7 @@ jobs:
             rustflags = ["-C", "target-feature=+crt-static","-C", "strip=symbols"]
             EOF
       - name: 添加编译平台
+        if: ${{ github.event.inputs.target == 's390x' }}
         run: |
          rustc --print target-list
          rustup target add $TARGET
