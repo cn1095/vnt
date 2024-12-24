@@ -146,6 +146,9 @@ jobs:
             rustflags = ["-C", "target-feature=+crt-static","-C", "strip=symbols"]
             [target.i686-unknown-linux-musl]
             rustflags = ["-C", "target-feature=+crt-static","-C", "strip=symbols"]
+            [target.s390x-unknown-linux-musl]
+            linker = "s390x-linux-musl-gcc"
+            rustflags = ["-C", "target-feature=+crt-static","-C", "strip=symbols"]
             EOF
       - name: 添加编译平台
         run: rustup target add $TARGET
