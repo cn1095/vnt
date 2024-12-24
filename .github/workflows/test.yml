@@ -26,6 +26,7 @@ on:
           - mips
           - i686
           - x86_64
+          - s390x
       feature:
         description: '额外添加想要的模块，多个模块以,分隔 i686使用default'
         required: false
@@ -92,6 +93,11 @@ jobs:
               x86_64)
                 TARGET=x86_64-unknown-linux-musl
                 NAME=vnt-cli_linux-x86_64
+                ;;
+              s390x)
+                TARGET=s390x-unknown-linux-musl
+                MUSL_URI=s390x-linux-musl
+                NAME=vnt-cli_linux-s390x
                 ;;
             esac
             
