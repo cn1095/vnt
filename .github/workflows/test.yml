@@ -157,7 +157,7 @@ jobs:
             rustflags = ["-C", "target-feature=+crt-static","-C", "strip=symbols"]
             [target.s390x-unknown-linux-musl]
             linker = "s390x-linux-musl-gcc"
-            rustflags = ["-C", "target-feature=+crt-static", "strip=symbols",
+            rustflags = ["-C", "target-feature=+crt-static","-C", "strip=symbols",
             "-L", "/opt/musl_gcc/s390x-linux-musl-cross/s390x-linux-musl/lib",
             "-L", "/opt/musl_gcc/s390x-linux-musl-cross/lib/gcc/s390x-linux-musl/11.2.1"]
             EOF
