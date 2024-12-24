@@ -157,10 +157,12 @@ jobs:
             rustflags = ["-C", "target-feature=+crt-static","-C", "strip=symbols"]
             [target.s390x-unknown-linux-musl]
             linker = "s390x-linux-musl-gcc"
-            rustflags = ["-C", "target-feature=+crt-static","-C", "strip=symbols"]
+            rustflags = ["-C", "target-feature=+crt-static", "strip=symbols",
+            "-L", "/opt/musl_gcc/s390x-linux-musl-cross/s390x-linux-musl/lib",
+            "-L", "/opt/musl_gcc/s390x-linux-musl-cross/lib/gcc/s390x-linux-musl/11.2.1"]
             EOF
       - name: 添加编译平台
-        if: ${{ github.event.inputs.target == 's390x' }}
+        if: ${{ github.event.inputs.target != 's390x' }}
         run: |
          rustc --print target-list
          rustup target add $TARGET
@@ -169,7 +171,11 @@ jobs:
           git clone -b ${{ env.branch }} https://github.com/${{ env.repo }} /opt/vnt
           cd /opt/vnt
           [[ -n $feature ]] && echo "当前${TARGET}架构添加的模块有 ${feature}" && FEATURES="--features ${feature}"
+          if [ "${{ github.event.inputs.target }}" == "s390x" ]; then
+          cargo +nightly build --release --target $TARGET -Z build-std=std,panic_abort $FEATURES
+          else
           cargo build --package vnt-cli --release --target $TARGET $FEATURES
+          fi
           mkdir -p /opt/bin
           mv /opt/vnt/target/${TARGET}/release/vnt-cli /opt/bin/vnt-cli
       - name: Install UPX
