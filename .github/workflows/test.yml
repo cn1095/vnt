@@ -112,7 +112,7 @@ jobs:
             else
               sudo apt-get update && sudo apt-get install -qq crossbuild-essential-arm64 crossbuild-essential-armhf musl-tools
             fi
-            if [[ $TARGET == mips-unknown-linux-musl ]] || [[ $TARGET == mipsel-unknown-linux-musl ]] ; then
+            if [[ $TARGET == mips-unknown-linux-musl ]] || [[ $TARGET == mipsel-unknown-linux-musl ]] || [[ $TARGET == s390x-unknown-linux-musl ]]  ; then
             rustup install 1.72.1
             rustup default 1.72.1
             else
