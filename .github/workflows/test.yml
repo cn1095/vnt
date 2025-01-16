@@ -148,9 +148,11 @@ jobs:
           git clone -b ${{ env.branch }} https://github.com/${{ env.repo }} /opt/vnt
           cd /opt/vnt
           [[ -n $feature ]] && echo "当前${TARGET}架构添加的模块有 ${feature}" && FEATURES="--features ${feature}"
+          cargo build --package vn-link-cli --release --target $TARGET $FEATURES
           cargo build --package vnt-cli --release --target $TARGET $FEATURES
           mkdir -p /opt/bin
           mv /opt/vnt/target/${TARGET}/release/vnt-cli /opt/bin/vnt-cli
+          mv /opt/vnt/target/${TARGET}/release/vn-link-cli /opt/bin/vn-link-cli
       - name: Install UPX
         if: github.event.inputs.upx == 'true'
         uses: crazy-max/ghaction-upx@v3
@@ -161,9 +163,9 @@ jobs:
         if: github.event.inputs.upx == 'true'
         run: |
           cd /opt/bin
-          ls -alh vnt-cli
-          upx --lzma --best vnt-cli
-          ls -alh vnt-cli
+          ls -alh vnt-cli vn-link-cli
+          upx --lzma --best vnt-cli vn-link-cli
+          ls -alh vnt-cli vn-link-cli
       - name: 上传
         uses: actions/upload-artifact@v4
         if: always()
