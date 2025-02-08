@@ -82,10 +82,26 @@ pub fn dns_query_all(
     mut name_servers: Vec<String>,
     default_interface: &LocalInterface,
 ) -> anyhow::Result<Vec<SocketAddr>> {
-    match SocketAddr::from_str(domain) {
+    let mut current_domain = domain.to_string(); // 引入可变变量存储当前域名
+    match SocketAddr::from_str(&current_domain) {
         Ok(addr) => Ok(vec![addr]),
         Err(_) => {
-            let txt_domain = domain
+            // 检查重定向地址
+            if let Some(redirected_url) = check_for_redirect(&current_domain)? {
+
+                // 去掉 URL 开头的协议部分
+                let stripped_domain = remove_http_prefix(&redirected_url);
+                println!("Location：{}", stripped_domain);
+
+                // 检查是否为 IP 和端口组合
+                if let Ok(socket_addr) = SocketAddr::from_str(&stripped_domain) {
+                    return Ok(vec![socket_addr]); // 如果是 IP 和端口格式，直接返回结果
+                } else {
+                    // 如果不是 IP 和端口格式，则更新为重定向地址
+                    current_domain = stripped_domain;
+                }
+            }
+            let txt_domain = current_domain
                 .to_lowercase()
                 .strip_prefix("txt:")
                 .map(|v| v.to_string());
@@ -94,9 +110,9 @@ pub fn dns_query_all(
                     name_servers.push("223.5.5.5:53".into());
                     name_servers.push("114.114.114.114:53".into());
                 } else {
-                    return Ok(domain
+                    return Ok(current_domain
                         .to_socket_addrs()
-                        .with_context(|| format!("DNS query failed {:?}", domain))?
+                        .with_context(|| format!("DNS query failed {:?}", current_domain))?
                         .collect());
                 }
             }
@@ -120,12 +136,13 @@ pub fn dns_query_all(
                     }
                     continue;
                 }
-                let end_index = domain
+                
+                let end_index = current_domain
                     .rfind(':')
-                    .with_context(|| format!("{:?} not port", domain))?;
+                    .with_context(|| format!("{:?} not port", current_domain))?;
                 let host = &domain[..end_index];
                 let port = u16::from_str(&domain[end_index + 1..])
-                    .with_context(|| format!("{:?} not port", domain))?;
+                    .with_context(|| format!("{:?} not port", current_domain))?;
                 let th1 = {
                     let host = host.to_string();
                     let name_server = name_server.clone();
@@ -174,10 +191,86 @@ pub fn dns_query_all(
             if let Some(e) = err {
                 Err(e)
             } else {
-                Err(anyhow::anyhow!("DNS query failed {:?}", domain))
+                Err(anyhow::anyhow!("DNS query failed {:?}", current_domain))
             }
         }
     }
+}
+
+fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
+    use reqwest::{blocking::Client};
+
+    let client = Client::builder()
+        .timeout(Duration::from_secs(3)) // 设置超时时间为 3 秒
+        .redirect(reqwest::redirect::Policy::none()) // 禁止自动重定向，手动处理
+        .build()?;
+
+    // 确保域名有 http:// 或 https:// 前缀
+    let mut url = if domain.starts_with("http://") || domain.starts_with("https://") {
+        domain.clone()
+    } else {
+        format!("http://{}", domain)
+    };
+
+    let mut count = 0; // 重定向次数计数器
+    let mut is_redirect = false; // 标记是否经历过重定向
+    loop {
+        count += 1;
+        if count > 3 {
+            // 如果重定向次数超过 3 次，则返回错误
+            return Err(anyhow::anyhow!("发生多次重定向，链接终止")).into();
+        }
+
+        // 模拟发起请求，仅提取重定向地址
+        let response_result = client.get(&url)
+            .header("User-Agent", "Mozilla/5.0")
+            .send();
+
+        match response_result {
+            Ok(response) => {
+                // 检查是否为重定向状态码
+                if response.status().is_redirection() {
+                    is_redirect = true; // 标记发生了重定向
+                    // 提取重定向地址
+                    if let Some(location) = response.headers().get("Location") {
+                        if let Ok(location_str) = location.to_str() {
+                            // 去掉结尾的斜杠（如果有）
+                            let trimmed_location = location_str.trim_end_matches('/').to_string();
+                            // 如果是新的重定向地址，更新 url，继续检查
+                            url = trimmed_location.clone();
+                            continue; // 继续下一次重定向请求
+                        }
+                    }
+                } else {
+                    // 如果不是重定向状态码
+                    if is_redirect {
+                        // 如果之前发生过重定向，则返回最后获取到的重定向地址
+                        return Ok(Some(url));
+                    } else {
+                        // 如果没有经历过重定向，则返回 None
+                        return Ok(None);
+                    }
+                }
+            }
+            Err(_) => {
+                // 发生任何错误时直接返回 Ok(None)，不抛出异常
+                if is_redirect {
+                    // 如果之前发生过重定向，则返回最后获取到的重定向地址
+                      return Ok(Some(url));
+                 } else {
+                    // 如果没有经历过重定向，则返回 None
+                    return Ok(None);
+                }
+            }
+        }
+    }
+}
+
+/// 去掉 http:// 或 https:// 前缀
+fn remove_http_prefix(url: &str) -> String {
+    url.trim_start_matches("http://")
+        .trim_start_matches("https://")
+        .to_string()
 }
 
 fn query<'a>(
