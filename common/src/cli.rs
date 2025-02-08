@@ -401,7 +401,7 @@ fn get_description(key: &str, language: &str) -> String {
 
 fn print_usage(program: &str, _opts: Options) {
     // 获取系统语言  Locale::user_default().unwrap_or_else(|_| Locale::default());
-    let language = get_locale().unwrap_or_else(|| String::from("en-US"));
+    let language = get_locale().unwrap_or_else(|| String::from("zh"));
     println!("Usage: {} [options]", program);
     println!("version:{}", vnt::VNT_VERSION);
     println!("Serial:{}", generated_serial_number::SERIAL_NUMBER);
