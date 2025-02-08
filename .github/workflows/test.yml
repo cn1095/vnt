@@ -4,32 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       repo:
-        description: '请输入vntAPP源码仓库'
+        description: '请输入vnt源码仓库'
         required: true
         default: 'cn1095/vnt'
       branch:
         description: '请输入仓库的分支或版本号，默认main分支'
         required: true
-        default: 'Location'
-      target:
-        description: '请选择linux目标CPU架构'
-        required: true
-        type: choice
-        default: 'mipsel'
-        options:
-          - aarch64
-          - armv7l-eabihf
-          - armv7l-eabi
-          - arm-eabihf
-          - arm-eabi
-          - mipsel
-          - mips
-          - i686
-          - x86_64
-      feature:
-        description: '额外添加想要的模块，多个模块以,分隔 i686使用default'
-        required: false
-        default: 'ring-cipher,wss'
+        default: '1.2.16'
       upx:
         description: '编译完成后是否使用upx压缩vnt-cli以减少二进制体积'
         required: true
@@ -40,80 +21,112 @@ env:
   CARGO_TERM_COLOR: always
   TZ: Asia/Shanghai
   branch: "${{ github.event.inputs.branch }}"
-  target: "${{ github.event.inputs.target }}"
-  feature: "${{ github.event.inputs.feature }}"
   repo: "${{ github.event.inputs.repo }}"
 jobs:
  build:
-    runs-on: ubuntu-latest
+    name: build ${{ matrix.TARGET }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - TARGET: aarch64-unknown-linux-musl
+            OS: ubuntu-latest
+            FEATURES: ring-cipher,openssl-vendored,wss
+            STRIP: aarch64-linux-musl-strip
+          - TARGET: armv7-unknown-linux-musleabihf
+            OS: ubuntu-latest
+            FEATURES: ring-cipher,openssl-vendored,wss
+            STRIP: armv7l-linux-musleabihf-strip
+          - TARGET: armv7-unknown-linux-musleabi
+            OS: ubuntu-latest
+            FEATURES: ring-cipher,openssl-vendored,wss
+            STRIP: armv7m-linux-musleabi-strip
+          - TARGET: arm-unknown-linux-musleabihf
+            OS: ubuntu-latest
+            FEATURES: ring-cipher,openssl-vendored
+            STRIP: arm-linux-musleabihf-strip
+          - TARGET: arm-unknown-linux-musleabi
+            OS: ubuntu-latest
+            FEATURES: ring-cipher,openssl-vendored,wss
+            STRIP: arm-linux-musleabi-strip
+          - TARGET: mipsel-unknown-linux-musl
+            OS: ubuntu-latest
+            FEATURES: openssl-vendored,ring-cipher,wss
+            STRIP: mipsel-linux-musl-strip
+          - TARGET: mips-unknown-linux-musl
+            OS: ubuntu-latest
+            FEATURES: ring-cipher,openssl-vendored,wss
+            STRIP: mips-linux-musl-strip
+          - TARGET: i686-unknown-linux-musl
+            OS: ubuntu-latest
+            FEATURES: ring-cipher,openssl-vendored,wss
+            STRIP: i686-linux-musl-strip
+          - TARGET: x86_64-unknown-linux-musl
+            OS: ubuntu-latest
+            FEATURES: ring-cipher,openssl-vendored,wss
+            STRIP: x86_64-linux-musl-strip
+    runs-on: ${{ matrix.OS }}
+    env:
+      NAME: vnt-cli_${{ matrix.TARGET }}
+      TARGET: ${{ matrix.TARGET }}
+      OS: ${{ matrix.OS }}
+      STRIP: ${{ matrix.STRIP }}
+      FEATURES: ${{ matrix.FEATURES }}
     steps:
+      - name: 安装 UPX
+        if: github.event.inputs.upx == 'true'
+        uses: crazy-max/ghaction-upx@v3
+        with:
+          version: latest
+          install-only: true
       - name: 设置编译环境
         run: |
-            case $target in 
-              mipsel)
-                TARGET=mipsel-unknown-linux-musl
+            case $TARGET in 
+              mipsel-unknown-linux-musl)
                 MUSL_URI=mipsel-linux-musl-cross
-                NAME=vnt-cli_linux-mipsel
                 ;;
-              aarch64)
-               TARGET=aarch64-unknown-linux-musl
+              aarch64-unknown-linux-musl)
                 MUSL_URI=aarch64-linux-musl-cross
-                NAME=vnt-cli_linux-aarch64
                 ;;
-              armv7l-eabihf)
-                TARGET=armv7-unknown-linux-musleabihf
+              armv7-unknown-linux-musleabihf)
                 MUSL_URI=armv7l-linux-musleabihf-cross
-                NAME=vnt-cli_linux-armv7-eabihf
                 ;;
-              armv7l-eabi)
-                TARGET=armv7-unknown-linux-musleabi
+              armv7-unknown-linux-musleabi)
                 MUSL_URI=armv7m-linux-musleabi-cross
-                NAME=vnt-cli_linux-armv7-eabi
                 ;;
-              arm-eabihf)
-                TARGET=arm-unknown-linux-musleabihf
+              arm-unknown-linux-musleabihf)
                 MUSL_URI=arm-linux-musleabihf-cross
-                NAME=vnt-cli_linux-arm-eabihf
                 ;;
-              arm-eabi)
-                TARGET=arm-unknown-linux-musleabi
+              arm-unknown-linux-musleabi)
                 MUSL_URI=arm-linux-musleabi-cross
-                NAME=vnt-cli_linux-arm-eabi
                 ;;
-              mips)
-                TARGET=mips-unknown-linux-musl
+              mips-unknown-linux-musl)
                 MUSL_URI=mips-linux-musl-cross
-                NAME=vnt-cli_linux-mips
                 ;;
-              i686)
-                TARGET=i686-unknown-linux-musl
-                NAME=vnt-cli_linux-i686
+              i686-unknown-linux-musl)
+                MUSL_URI=i686-linux-musl-cross
                 ;;
-              x86_64)
-                TARGET=x86_64-unknown-linux-musl
-                NAME=vnt-cli_linux-x86_64
+              x86_64-unknown-linux-musl)
+                MUSL_URI=x86_64-linux-musl-cross
                 ;;
             esac
-            
-            echo "TARGET=${TARGET}" >> $GITHUB_ENV
-            echo "NAME=${NAME}" >> $GITHUB_ENV
-            if [[ $target != i686 ]] && [[ $target != x86_64 ]] ; then
               echo "MUSL_URI=${MUSL_URI}" >> $GITHUB_ENV
               mkdir -p /opt/musl_gcc 
-              wget -q -c https://musl.cc/$MUSL_URI.tgz -P /opt/musl_gcc/
+              wget -c https://musl.cc/$MUSL_URI.tgz -P /opt/musl_gcc/
               tar zxf /opt/musl_gcc/$MUSL_URI.tgz -C /opt/musl_gcc/
               sudo ln -s /opt/musl_gcc/$MUSL_URI/bin/*gcc /usr/bin/
-            fi
-            sudo apt-get update && sudo apt-get install clang llvm libc6-dev-i386 crossbuild-essential-arm64 crossbuild-essential-armhf musl-tools libboost-all-dev libc6-dev -y
             if [[ $TARGET == mips-unknown-linux-musl ]] || [[ $TARGET == mipsel-unknown-linux-musl ]] ; then
             rustup install 1.72.1
             rustup default 1.72.1
-            else
-            rustup install 1.77
-            rustup default 1.77
             fi
             sudo timedatectl set-timezone "Asia/Shanghai"
             cat >>~/.cargo/config <<EOF
+            [target.i686-unknown-linux-musl]
+            linker = "i686-linux-musl-gcc"
+            rustflags = ["-C", "target-feature=+crt-static","-C", "strip=symbols"]
+            [target.x86_64-unknown-linux-musl]
+            linker = "x86_64-linux-musl-gcc"
+            rustflags = ["-C", "target-feature=+crt-static","-C", "strip=symbols"]
             [target.aarch64-unknown-linux-musl]
             linker = "aarch64-linux-musl-gcc"
             rustflags = ["-C", "target-feature=+crt-static","-C", "strip=symbols"]
@@ -134,11 +147,7 @@ jobs:
             rustflags = ["-C", "target-feature=+crt-static","-C", "strip=symbols"]
             [target.mips-unknown-linux-musl]
             linker = "mips-linux-musl-gcc"
-            rustflags = ["-C", "target-feature=+crt-static","-C", "strip=symbols"]
-            [target.x86_64-unknown-linux-musl]
-            rustflags = ["-C", "target-feature=+crt-static","-C", "strip=symbols"]
-            [target.i686-unknown-linux-musl]
-            rustflags = ["-C", "target-feature=+crt-static","-C", "strip=symbols"]
+            rustflags = ["-C", "target-feature=+crt-static","-C", "strip=symbols"]  
             EOF
       - name: 添加编译平台
         run: rustup target add $TARGET
@@ -146,18 +155,11 @@ jobs:
         run: |
           git clone -b ${{ env.branch }} https://github.com/${{ env.repo }} /opt/vnt
           cd /opt/vnt
-          [[ -n $feature ]] && echo "当前${TARGET}架构添加的模块有 ${feature}" && FEATURES="--features ${feature}"
-          cargo build --package vn-link-cli --release --target $TARGET $FEATURES
-          cargo build --package vnt-cli --release --target $TARGET $FEATURES
+          cargo build --package vn-link-cli --release --target $TARGET --features ${{ matrix.FEATURES }}
+          cargo build --package vnt-cli --release --target $TARGET -features ${{ matrix.FEATURES }}
           mkdir -p /opt/bin
           mv /opt/vnt/target/${TARGET}/release/vnt-cli /opt/bin/vnt-cli
           mv /opt/vnt/target/${TARGET}/release/vn-link-cli /opt/bin/vn-link-cli
-      - name: Install UPX
-        if: github.event.inputs.upx == 'true'
-        uses: crazy-max/ghaction-upx@v3
-        with:
-          version: latest
-          install-only: true
       - name: 打包压缩
         if: github.event.inputs.upx == 'true'
         run: |
