@@ -198,10 +198,10 @@ pub fn dns_query_all(
 }
 
 fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
-    use reqwest::{blocking::Client};
+    use http_req::request::{RedirectPolicy, Request};
 
     let client = Client::builder()
-        .timeout(Duration::from_secs(3)) // 设置超时时间为 3 秒
+        .timeout(Duration::from_secs(10)) // 设置超时时间为 3 秒
         .redirect(reqwest::redirect::Policy::none()) // 禁止自动重定向，手动处理
         .build()?;
 
