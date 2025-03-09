@@ -199,12 +199,6 @@ pub fn dns_query_all(
     }
 }
 
-use http_req::request::{Request, RedirectPolicy};
-use http_req::uri::Uri;
-use std::time::Duration;
-use std::convert::TryFrom;
-use regex::Regex;
-
 fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
     // 确保域名有 http:// 或 https:// 前缀
     let mut url = if domain.starts_with("http://") || domain.starts_with("https://") {
