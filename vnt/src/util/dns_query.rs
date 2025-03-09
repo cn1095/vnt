@@ -197,14 +197,9 @@ pub fn dns_query_all(
     }
 }
 
-fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
-    use http_req::request::{RedirectPolicy, Request};
-
-    let client = Client::builder()
-        .timeout(Duration::from_secs(10)) // 设置超时时间为 3 秒
-        .redirect(reqwest::redirect::Policy::none()) // 禁止自动重定向，手动处理
-        .build()?;
-
+fn check_for_redirect(domain: &String) -> Result<Option<String>> {
+    use http_req::request::{Request, RedirectPolicy};
+    use http_req::uri::Uri;
     // 确保域名有 http:// 或 https:// 前缀
     let mut url = if domain.starts_with("http://") || domain.starts_with("https://") {
         domain.clone()
@@ -214,57 +209,50 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
 
     let mut count = 0; // 重定向次数计数器
     let mut is_redirect = false; // 标记是否经历过重定向
+
     loop {
         count += 1;
         if count > 3 {
             // 如果重定向次数超过 3 次，则返回错误
-            return Err(anyhow::anyhow!("发生多次重定向，链接终止")).into();
+            return Err(anyhow::anyhow!("发生多次重定向，链接终止"));
         }
 
-        // 模拟发起请求，仅提取重定向地址
-        let response_result = client.get(&url)
-            .header("User-Agent", "Mozilla/5.0")
-            .send();
+        // 解析 URL
+        let uri = Uri::from_str(&url)
+            .map_err(|_| anyhow::anyhow!("解析 URL 失败: {}", url))?;
 
-        match response_result {
-            Ok(response) => {
-                // 检查是否为重定向状态码
-                if response.status().is_redirection() {
-                    is_redirect = true; // 标记发生了重定向
-                    // 提取重定向地址
-                    if let Some(location) = response.headers().get("Location") {
-                        if let Ok(location_str) = location.to_str() {
-                            // 去掉结尾的斜杠（如果有）
-                            let trimmed_location = location_str.trim_end_matches('/').to_string();
-                            // 如果是新的重定向地址，更新 url，继续检查
-                            url = trimmed_location.clone();
-                            continue; // 继续下一次重定向请求
-                        }
-                    }
-                } else {
-                    // 如果不是重定向状态码
-                    if is_redirect {
-                        // 如果之前发生过重定向，则返回最后获取到的重定向地址
-                        return Ok(Some(url));
-                    } else {
-                        // 如果没有经历过重定向，则返回 None
-                        return Ok(None);
-                    }
-                }
+        let mut response_body = Vec::new();
+
+        // 发送 HTTP 请求
+        let response = Request::new(&uri)
+            .timeout(Duration::from_secs(10)) // 设置超时时间
+            .redirect_policy(RedirectPolicy::Limit(0)) // 禁止自动重定向
+            .send(&mut response_body) // 发送请求并获取响应
+            .map_err(|_| anyhow::anyhow!("请求失败: {}", url))?;
+
+        // 检查是否为 3XX 重定向状态码
+        if response.status_code().is_redirect() {
+            is_redirect = true; // 标记发生了重定向
+
+            // 提取 `Location` 头部
+            if let Some(location) = response.headers().get("Location") {
+                let new_url = location.to_string();
+                url = new_url.trim_end_matches('/').to_string(); // 去掉结尾的 `/`
+                continue; // 继续下一次重定向请求
             }
-            Err(_) => {
-                // 发生任何错误时直接返回 Ok(None)，不抛出异常
-                if is_redirect {
-                    // 如果之前发生过重定向，则返回最后获取到的重定向地址
-                      return Ok(Some(url));
-                 } else {
-                    // 如果没有经历过重定向，则返回 None
-                    return Ok(None);
-                }
-            }
+        } else {
+            // 如果不是重定向状态码
+            return if is_redirect {
+                // 之前发生过重定向，则返回最终的 URL
+                Ok(Some(url))
+            } else {
+                // 没有重定向，则返回 None
+                Ok(None)
+            };
         }
     }
 }
+
 
 /// 去掉 http:// 或 https:// 前缀
 fn remove_http_prefix(url: &str) -> String {
