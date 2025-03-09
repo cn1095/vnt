@@ -216,13 +216,19 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
     loop {
         count += 1;
         if count > 3 {
+            println!("重定向次数超过 3 次，跳过");
             return Ok(None);
         }
 
         // 解析 URL
         let uri = match Uri::try_from(url.as_str()) {
-            Ok(u) => u,
-            Err(_) => return Ok(None),
+            Ok(u) => {
+                u
+            }
+            Err(e) => {
+                println!("解析 URI 失败: {}", e);
+                return Ok(None);
+            }
         };
 
         let mut response_body = Vec::new();
@@ -233,19 +239,27 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
             .redirect_policy(RedirectPolicy::Limit(0))
             .send(&mut response_body)
         {
-            Ok(resp) => resp,
-            Err(_) => return Ok(None),
+            Ok(resp) => {
+                println!("收到 HTTP 响应: 状态码 {}", resp.status_code());
+                resp
+            }
+            Err(e) => {
+                println!("HTTP 请求失败: {}", e);
+                return Ok(None);
+            }
         };
 
         let body_str = String::from_utf8_lossy(&response_body);
-
+        println!("响应体: {}", body_str);
         // 处理 3XX 重定向
         if response.status_code().is_redirect() {
             is_redirect = true;
             if let Some(location) = response.headers().get("Location") {
                 url = location.to_string().trim_end_matches('/').to_string();
+                println!("重定向到: {}", url);
                 continue;
             } else {
+                println!("响应头中没有 Location，跳过");
                 return Ok(None);
             }
         }
@@ -255,12 +269,14 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
             for line in body_str.lines() {
                 let trimmed = line.trim();
                 if addr_regex.is_match(trimmed) {
+                    println!("匹配到地址: {}", trimmed);
                     return Ok(Some(trimmed.to_string()));
                 }
             }
+             println!("没有找到匹配的 IP:端口 或 域名:端口，跳过");
             return Ok(None);
         }
-
+        println!("非 200/3XX 响应，跳过");
         return Ok(None);
     }
 }
