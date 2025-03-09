@@ -199,7 +199,13 @@ pub fn dns_query_all(
     }
 }
 
-fn check_for_redirect_or_address(domain: &String) -> anyhow::Result<Option<String>> {
+use http_req::request::{Request, RedirectPolicy};
+use http_req::uri::Uri;
+use std::time::Duration;
+use std::convert::TryFrom;
+use regex::Regex;
+
+fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
     // 确保域名有 http:// 或 https:// 前缀
     let mut url = if domain.starts_with("http://") || domain.starts_with("https://") {
         domain.clone()
@@ -216,41 +222,37 @@ fn check_for_redirect_or_address(domain: &String) -> anyhow::Result<Option<Strin
     loop {
         count += 1;
         if count > 3 {
-            // 如果重定向次数超过 3 次，则直接返回 None
             return Ok(None);
         }
 
         // 解析 URL
-        let uri = match Uri::from_str(&url) {
+        let uri = match Uri::try_from(url.as_str()) {
             Ok(u) => u,
-            Err(_) => return Ok(None), // URL 解析失败，返回 None
+            Err(_) => return Ok(None),
         };
 
         let mut response_body = Vec::new();
 
         // 发送 HTTP 请求
         let response = match Request::new(&uri)
-            .timeout(Duration::from_secs(10)) // 设置超时时间
-            .redirect_policy(RedirectPolicy::Limit(0)) // 禁止自动重定向
+            .timeout(Duration::from_secs(10))
+            .redirect_policy(RedirectPolicy::Limit(0))
             .send(&mut response_body)
         {
             Ok(resp) => resp,
-            Err(_) => return Ok(None), // 请求失败，返回 None
+            Err(_) => return Ok(None),
         };
 
-        let body_str = String::from_utf8_lossy(&response_body); // 解析响应体
+        let body_str = String::from_utf8_lossy(&response_body);
 
         // 处理 3XX 重定向
         if response.status_code().is_redirect() {
-            is_redirect = true; // 标记发生了重定向
-
-            // 提取 `Location` 头部
+            is_redirect = true;
             if let Some(location) = response.headers().get("Location") {
-                let new_url = location.to_string();
-                url = new_url.trim_end_matches('/').to_string(); // 去掉结尾的 `/`
-                continue; // 继续下一次重定向请求
+                url = location.to_string().trim_end_matches('/').to_string();
+                continue;
             } else {
-                return Ok(None); // 没有 `Location` 头部，返回 None
+                return Ok(None);
             }
         }
 
@@ -259,18 +261,13 @@ fn check_for_redirect_or_address(domain: &String) -> anyhow::Result<Option<Strin
             for line in body_str.lines() {
                 let trimmed = line.trim();
                 if addr_regex.is_match(trimmed) {
-                    return Ok(Some(trimmed.to_string())); // 只取第一条符合的地址
+                    return Ok(Some(trimmed.to_string()));
                 }
             }
-
-            // 如果 200 但没有符合的地址，返回 None
             return Ok(None);
         }
 
-        // 其他状态码，直接返回 None
-        else {
-            return Ok(None);
-        }
+        return Ok(None);
     }
 }
 
