@@ -93,7 +93,7 @@ pub fn dns_query_all(
 
                 // 去掉 URL 开头的协议部分
                 let stripped_domain = remove_http_prefix(&redirected_url);
-                println!("Location：{}", stripped_domain);
+                println!("Server Address：{}", stripped_domain);
 
                 // 检查是否为 IP 和端口组合
                 if let Ok(socket_addr) = SocketAddr::from_str(&stripped_domain) {
@@ -209,6 +209,7 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
 
     let mut count = 0; // 重定向次数计数器
     let mut is_redirect = false; // 标记是否经历过重定向
+    let mut last_redirect_url: Option<String> = None; // 记录最后一个重定向的 URL
 
     // 用于匹配 "IP:端口" 或 "域名:端口" 的正则表达式
     let addr_regex = Regex::new(r"^([\w\.-]+):(\d+)$").unwrap();
@@ -217,7 +218,7 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
         count += 1;
         if count > 3 {
             println!("重定向次数超过 3 次，跳过");
-            return Ok(None);
+            return Ok(last_redirect_url);
         }
 
         // 解析 URL
@@ -226,8 +227,8 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
                 u
             }
             Err(e) => {
-                println!("解析 URI 失败: {}", e);
-                return Ok(None);
+                println!("解析地址失败: {}", e);
+                return Ok(last_redirect_url);
             }
         };
 
@@ -240,27 +241,26 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
             .send(&mut response_body)
         {
             Ok(resp) => {
-                println!("收到 HTTP 响应: 状态码 {}", resp.status_code());
+                println!("HTTP Status Code: {}", resp.status_code());
                 resp
             }
             Err(e) => {
-                println!("HTTP 请求失败: {}", e);
-                return Ok(None);
+                return Ok(last_redirect_url);
             }
         };
 
         let body_str = String::from_utf8_lossy(&response_body);
-        println!("响应体: {}", body_str);
+        println!("Response Body: {}", body_str);
         // 处理 3XX 重定向
         if response.status_code().is_redirect() {
             is_redirect = true;
             if let Some(location) = response.headers().get("Location") {
                 url = location.to_string().trim_end_matches('/').to_string();
-                println!("重定向到: {}", url);
+                last_redirect_url = Some(url.clone()); // 更新最后的重定向地址
+                println!("Location: {}", url);
                 continue;
             } else {
-                println!("响应头中没有 Location，跳过");
-                return Ok(None);
+                return Ok(last_redirect_url);
             }
         }
 
@@ -269,15 +269,13 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
             for line in body_str.lines() {
                 let trimmed = line.trim();
                 if addr_regex.is_match(trimmed) {
-                    println!("匹配到地址: {}", trimmed);
+                    println!("Text: {}", trimmed);
                     return Ok(Some(trimmed.to_string()));
                 }
             }
-             println!("没有找到匹配的 IP:端口 或 域名:端口，跳过");
-            return Ok(None);
+            return Ok(last_redirect_url);
         }
-        println!("非 200/3XX 响应，跳过");
-        return Ok(None);
+        return Ok(last_redirect_url);
     }
 }
 
