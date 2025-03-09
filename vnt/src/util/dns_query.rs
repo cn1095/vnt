@@ -4,7 +4,9 @@ use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs, UdpSocket};
 use std::str::FromStr;
 use std::time::Duration;
 use std::{io, thread};
-
+use http_req::request::{Request, RedirectPolicy};
+use http_req::uri::Uri;
+use regex::Regex;
 use crate::channel::socket::LocalInterface;
 use anyhow::Context;
 use dns_parser::{Builder, Packet, QueryClass, QueryType, RData, ResponseCode};
@@ -197,9 +199,7 @@ pub fn dns_query_all(
     }
 }
 
-fn check_for_redirect(domain: &String) -> Result<Option<String>> {
-    use http_req::request::{Request, RedirectPolicy};
-    use http_req::uri::Uri;
+fn check_for_redirect_or_address(domain: &String) -> anyhow::Result<Option<String>> {
     // 确保域名有 http:// 或 https:// 前缀
     let mut url = if domain.starts_with("http://") || domain.starts_with("https://") {
         domain.clone()
@@ -210,27 +210,37 @@ fn check_for_redirect(domain: &String) -> Result<Option<String>> {
     let mut count = 0; // 重定向次数计数器
     let mut is_redirect = false; // 标记是否经历过重定向
 
+    // 用于匹配 "IP:端口" 或 "域名:端口" 的正则表达式
+    let addr_regex = Regex::new(r"^([\w\.-]+):(\d+)$").unwrap();
+
     loop {
         count += 1;
         if count > 3 {
-            // 如果重定向次数超过 3 次，则返回错误
-            return Err(anyhow::anyhow!("发生多次重定向，链接终止"));
+            // 如果重定向次数超过 3 次，则直接返回 None
+            return Ok(None);
         }
 
         // 解析 URL
-        let uri = Uri::from_str(&url)
-            .map_err(|_| anyhow::anyhow!("解析 URL 失败: {}", url))?;
+        let uri = match Uri::from_str(&url) {
+            Ok(u) => u,
+            Err(_) => return Ok(None), // URL 解析失败，返回 None
+        };
 
         let mut response_body = Vec::new();
 
         // 发送 HTTP 请求
-        let response = Request::new(&uri)
+        let response = match Request::new(&uri)
             .timeout(Duration::from_secs(10)) // 设置超时时间
             .redirect_policy(RedirectPolicy::Limit(0)) // 禁止自动重定向
-            .send(&mut response_body) // 发送请求并获取响应
-            .map_err(|_| anyhow::anyhow!("请求失败: {}", url))?;
+            .send(&mut response_body)
+        {
+            Ok(resp) => resp,
+            Err(_) => return Ok(None), // 请求失败，返回 None
+        };
 
-        // 检查是否为 3XX 重定向状态码
+        let body_str = String::from_utf8_lossy(&response_body); // 解析响应体
+
+        // 处理 3XX 重定向
         if response.status_code().is_redirect() {
             is_redirect = true; // 标记发生了重定向
 
@@ -239,20 +249,30 @@ fn check_for_redirect(domain: &String) -> Result<Option<String>> {
                 let new_url = location.to_string();
                 url = new_url.trim_end_matches('/').to_string(); // 去掉结尾的 `/`
                 continue; // 继续下一次重定向请求
-            }
-        } else {
-            // 如果不是重定向状态码
-            return if is_redirect {
-                // 之前发生过重定向，则返回最终的 URL
-                Ok(Some(url))
             } else {
-                // 没有重定向，则返回 None
-                Ok(None)
-            };
+                return Ok(None); // 没有 `Location` 头部，返回 None
+            }
+        }
+
+        // 处理 200 响应
+        else if response.status_code().is_success() {
+            for line in body_str.lines() {
+                let trimmed = line.trim();
+                if addr_regex.is_match(trimmed) {
+                    return Ok(Some(trimmed.to_string())); // 只取第一条符合的地址
+                }
+            }
+
+            // 如果 200 但没有符合的地址，返回 None
+            return Ok(None);
+        }
+
+        // 其他状态码，直接返回 None
+        else {
+            return Ok(None);
         }
     }
 }
-
 
 /// 去掉 http:// 或 https:// 前缀
 fn remove_http_prefix(url: &str) -> String {
