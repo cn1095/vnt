@@ -90,18 +90,24 @@ pub fn dns_query_all(
         Err(_) => {
             // 检查重定向地址
             if let Some(redirected_url) = check_for_redirect(&current_domain)? {
+                // 只处理以 "http:" 或 "https:" 开头的 URL
+                let http_domain = redirected_url
+                .to_lowercase()
+                .strip_prefix("http:")
+                .or_else(|| redirected_url.to_lowercase().strip_prefix("https:"))
+                .map(|v| v.to_string());
 
-                // 去掉 URL 开头的协议部分
-                let stripped_domain = remove_http_prefix(&redirected_url);
-                println!("Server Address：{}", stripped_domain);
+                if let Some(stripped_domain) = http_domain {
+                    println!("Server Address: {}", stripped_domain);
 
-                // 检查是否为 IP 和端口组合
-                if let Ok(socket_addr) = SocketAddr::from_str(&stripped_domain) {
-                    return Ok(vec![socket_addr]); // 如果是 IP 和端口格式，直接返回结果
-                } else {
-                    // 如果不是 IP 和端口格式，则更新为重定向地址
-                    current_domain = stripped_domain;
-                }
+                    // 检查是否为 IP 和端口组合
+                    if let Ok(socket_addr) = SocketAddr::from_str(&stripped_domain) {
+                        return Ok(vec![socket_addr]); // 如果是 IP 和端口格式，直接返回结果
+                    } else {
+                        // 如果不是 IP 和端口格式，则更新为重定向地址
+                        current_domain = stripped_domain;
+                    }
+                } 
             }
             let txt_domain = current_domain
                 .to_lowercase()
@@ -199,6 +205,24 @@ pub fn dns_query_all(
     }
 }
 
+fn parse_host_port(addr: &str) -> bool {
+    // 处理 IPv6 地址（格式为 [::1]:8080）
+    if addr.starts_with('[') {
+        if let Some(idx) = addr.rfind(']') {
+            if let Some(port_idx) = addr[idx+1..].find(':') {
+                let port = &addr[idx+1+port_idx+1..]; // 提取端口部分
+                return !port.is_empty() && port.chars().all(|c| c.is_numeric());
+            }
+        }
+    } else {
+        // 处理 IPv4 和普通域名（格式为 example.com:443 或 192.168.1.1:8080）
+        if let Some((_host, port)) = addr.rsplit_once(':') {
+            return !port.is_empty() && port.chars().all(|c| c.is_numeric());
+        }
+    }
+    false
+}
+
 fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
     // 确保域名有 http:// 或 https:// 前缀
     let mut url = if domain.starts_with("http://") || domain.starts_with("https://") {
@@ -210,9 +234,6 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
     let mut count = 0; // 重定向次数计数器
     let mut is_redirect = false; // 标记是否经历过重定向
     let mut last_redirect_url: Option<String> = None; // 记录最后一个重定向的 URL
-
-    // 用于匹配 "IP:端口" 或 "域名:端口" 的正则表达式
-    let addr_regex = Regex::new(r"^([\w\.-]+):(\d+)$").unwrap();
 
     loop {
         count += 1;
@@ -250,7 +271,8 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
         };
 
         let body_str = String::from_utf8_lossy(&response_body);
-        println!("Response Body: {}", body_str);
+        let cleaned_body = body_str.replace('\n', "").replace('\r', ""); 
+        println!("Response Body: {}", cleaned_body);
         // 处理 3XX 重定向
         if response.status_code().is_redirect() {
             is_redirect = true;
@@ -268,8 +290,8 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
         else if response.status_code().is_success() {
             for line in body_str.lines() {
                 let trimmed = line.trim();
-                if addr_regex.is_match(trimmed) {
-                    println!("Text: {}", trimmed);
+                if parse_host_port(trimmed) {
+                    println!("text: {}", trimmed);
                     return Ok(Some(trimmed.to_string()));
                 }
             }
