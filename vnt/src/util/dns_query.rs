@@ -6,7 +6,6 @@ use std::time::Duration;
 use std::{io, thread};
 use http_req::request::{Request, RedirectPolicy};
 use http_req::uri::Uri;
-use regex::Regex;
 use crate::channel::socket::LocalInterface;
 use anyhow::Context;
 use dns_parser::{Builder, Packet, QueryClass, QueryType, RData, ResponseCode};
@@ -88,26 +87,30 @@ pub fn dns_query_all(
     match SocketAddr::from_str(&current_domain) {
         Ok(addr) => Ok(vec![addr]),
         Err(_) => {
-            // 检查重定向地址
-            if let Some(redirected_url) = check_for_redirect(&current_domain)? {
-                // 只处理以 "http:" 或 "https:" 开头的 URL
-                let http_domain = redirected_url
+            // 重定向判断 http:
+            let redirect_domain = current_domain
                 .to_lowercase()
                 .strip_prefix("http:")
-                .or_else(|| redirected_url.to_lowercase().strip_prefix("https:"))
+                .or_else(|| current_domain.to_lowercase().strip_prefix("https:"))
                 .map(|v| v.to_string());
 
-                if let Some(stripped_domain) = http_domain {
-                    println!("Server Address: {}", stripped_domain);
+            // 执行重定向检查
+            if let Some(stripped) = redirect_domain {
+                if let Some(redirected_url) = check_for_redirect(&stripped)? {
+
+                    // 去掉 URL 开头的协议部分
+                    let final_domain = remove_http_prefix(&redirected_url);
+                    println!("Server Address: {}", final_domain);
 
                     // 检查是否为 IP 和端口组合
-                    if let Ok(socket_addr) = SocketAddr::from_str(&stripped_domain) {
-                        return Ok(vec![socket_addr]); // 如果是 IP 和端口格式，直接返回结果
+                    if let Ok(socket_addr) = SocketAddr::from_str(&final_domain) {
+                        // 如果是 IP 和端口格式，直接返回结果
+                        return Ok(vec![socket_addr]);
                     } else {
                         // 如果不是 IP 和端口格式，则更新为重定向地址
-                        current_domain = stripped_domain;
+                        current_domain = final_domain;
                     }
-                } 
+                }
             }
             let txt_domain = current_domain
                 .to_lowercase()
@@ -232,7 +235,6 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
     };
 
     let mut count = 0; // 重定向次数计数器
-    let mut is_redirect = false; // 标记是否经历过重定向
     let mut last_redirect_url: Option<String> = None; // 记录最后一个重定向的 URL
 
     loop {
