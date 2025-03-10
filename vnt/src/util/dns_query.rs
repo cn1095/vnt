@@ -91,7 +91,7 @@ pub fn dns_query_all(
             let current_domain_lower = current_domain.to_lowercase();
             let redirect_domain = current_domain_lower
                 .strip_prefix("http:")
-                .or_else(|| current_domain_lower.to_lowercase().strip_prefix("https:"))
+                .or_else(|| current_domain_lower.strip_prefix("https:"))
                 .map(|v| v.to_string());
 
             // 执行重定向检查
