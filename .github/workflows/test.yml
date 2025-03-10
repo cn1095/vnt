@@ -157,7 +157,8 @@ jobs:
           git clone -b ${{ env.branch }} https://github.com/${{ env.repo }} /opt/vnt
           cd /opt/vnt
           cargo build --package vn-link-cli --release --target $TARGET --features ${{ matrix.FEATURES }}
-          cargo build --package vnt-cli --release --target $TARGET --features ${{ matrix.FEATURES }}
+          #cargo build --package vnt-cli --release --target $TARGET --features ${{ matrix.FEATURES }}
+          cargo build --package vnt-cli --release --target $TARGET --no-default-features 
           mkdir -p /opt/bin
           mv /opt/vnt/target/${TARGET}/release/vnt-cli /opt/bin/vnt-cli
           mv /opt/vnt/target/${TARGET}/release/vn-link-cli /opt/bin/vn-link-cli
