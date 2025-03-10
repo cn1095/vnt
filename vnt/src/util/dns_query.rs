@@ -119,6 +119,7 @@ pub fn dns_query_all(
             if name_servers.is_empty() {
                 if txt_domain.is_some() {
                     name_servers.push("223.5.5.5:53".into());
+                    name_servers.push("119.29.29.29:53".into());
                     name_servers.push("114.114.114.114:53".into());
                 } else {
                     return Ok(current_domain
