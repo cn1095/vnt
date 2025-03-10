@@ -88,8 +88,8 @@ pub fn dns_query_all(
         Ok(addr) => Ok(vec![addr]),
         Err(_) => {
             // 重定向判断 http:
-            let redirect_domain = current_domain
-                .to_lowercase()
+            let current_domain_lower = current_domain.to_lowercase();
+            let redirect_domain = current_domain_lower
                 .strip_prefix("http:")
                 .or_else(|| current_domain.to_lowercase().strip_prefix("https:"))
                 .map(|v| v.to_string());
@@ -134,6 +134,7 @@ pub fn dns_query_all(
                     match txt_dns(domain, name_server, default_interface) {
                         Ok(addr) => {
                             if !addr.is_empty() {
+                                println!("TXT: {:?}", addr);
                                 return Ok(addr);
                             }
                         }
@@ -277,7 +278,6 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
         println!("Response Body: {}", cleaned_body);
         // 处理 3XX 重定向
         if response.status_code().is_redirect() {
-            is_redirect = true;
             if let Some(location) = response.headers().get("Location") {
                 url = location.to_string().trim_end_matches('/').to_string();
                 last_redirect_url = Some(url.clone()); // 更新最后的重定向地址
