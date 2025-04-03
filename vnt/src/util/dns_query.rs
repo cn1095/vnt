@@ -256,7 +256,7 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
                 return Ok(last_redirect_url);
             }
         };
-        
+        let mut response_body = Vec::new();
         // 发送 HTTP 请求
         let response = match Request::head(&uri)
             .timeout(Duration::from_secs(10))
