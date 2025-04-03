@@ -258,10 +258,11 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
         };
         let mut response_body = Vec::new();
         // 发送 HTTP 请求
-        let response = match Request::head(&uri)
+        let response = match Request::new(&uri)
+            .method(Method::HEAD) // 使用 HEAD 方法
             .timeout(Duration::from_secs(10))
             .redirect_policy(RedirectPolicy::Limit(0))
-            .send(&mut response_body)
+            .send(&mut Vec::new())
         {
             Ok(resp) => {
                 println!("HTTP Status Code: {}", resp.status_code());
@@ -286,6 +287,24 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
 
         // 处理 200 响应
         else if response.status_code().is_success() {
+            let get_response = match Request::new(&uri)
+                .method(Method::GET) 
+                .timeout(Duration::from_secs(10)) 
+                .redirect_policy(RedirectPolicy::Limit(0))
+                .send(&mut response_body) 
+            {
+                Ok(resp) => {
+                    resp
+                }
+                Err(e) => {
+                    return Ok(last_redirect_url);
+                }
+            };
+
+            let body_str = String::from_utf8_lossy(&response_body);
+            let cleaned_body = body_str.replace('\n', "").replace('\r', "");
+            println!("Response Body: {}", cleaned_body);
+
             for line in body_str.lines() {
                 let trimmed = line.trim();
                 if parse_host_port(trimmed) {
