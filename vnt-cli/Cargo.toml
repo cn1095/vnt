@@ -4,8 +4,11 @@ version = "1.2.16"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[patch.crates-io]
+home = { version = "=0.5.9" }
 
 [dependencies]
+home = "=0.5.9"
 vnt = { path = "../vnt", package = "vnt", default-features = false, features = ["integrated_tun"] }
 common = { path = "../common", default-features = false, features = ["integrated_tun"] }
 log = "0.4.17"
