@@ -1,7 +1,7 @@
 use crate::channel::socket::LocalInterface;
 use crossbeam_utils::atomic::AtomicCell;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::time::{SystemTime, UNIX_EPOCH};
+
 pub mod callback;
 mod extension;
 pub mod handshaker;
@@ -15,8 +15,8 @@ const SELF_IP: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 2);
 const GATEWAY_IP: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 1);
 
 pub fn now_time() -> u64 {
-    let now = SystemTime::now();
-    if let Ok(duration) = now.duration_since(UNIX_EPOCH) {
+    let now = std::time::SystemTime::now();
+    if let Ok(timestamp) = now.duration_since(std::time::UNIX_EPOCH) {
         timestamp.as_secs() * 1000 + u64::from(timestamp.subsec_millis())
     } else {
         0
