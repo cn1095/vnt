@@ -1,12 +1,6 @@
 [workspace]
 members = ["vnt", "common", "vnt-cli", "vn-link", "vn-link-cli"]
 
-[patch.crates-io]
-home = { version = "=0.5.9" }
-
-[workspace.dependencies]
-home = "=0.5.9"
-
 [profile.release]
 opt-level = 'z'
 debug = 0
