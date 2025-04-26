@@ -150,11 +150,19 @@ impl Config {
                 server_address_str = s.to_string();
                 protocol = ConnectProtocol::TCP;
             }
-            server_address = address_choose(dns_query_all(
+            let address_result = dns_query_all(
                 &server_address_str,
                 name_servers.clone(),
                 &LocalInterface::default(),
-            )?)?;
+            );
+            match address_result {
+                Ok(address) => {
+                    server_address = address_choose(address)?; 
+                }
+                Err(e) => {
+                    println!("DNS 查询失败: {}", e);
+                }
+            }
         }
         #[cfg(feature = "port_mapping")]
         let port_mapping_list = crate::port_mapping::convert(port_mapping_list)?;
