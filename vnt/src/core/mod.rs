@@ -148,13 +148,21 @@ impl Config {
             );
             match address_result {
                 Ok(address) => {
-                    server_address = address_choose(address)?; 
+                    match address_choose(address) {
+                        Ok(resolved_address) => {
+                            server_address = resolved_address; 
+                        }
+                        Err(e) => {
+                            log::info!("Failed to choose address: {}", e);
+                        }
+                    }
                 }
                 Err(e) => {
-                    println!("DNS 查询失败: {}", e);
+                    log::info!("DNS query failed: {}", e);
                 }
             }
         }
+        
         #[cfg(feature = "port_mapping")]
         let port_mapping_list = crate::port_mapping::convert(port_mapping_list)?;
 
