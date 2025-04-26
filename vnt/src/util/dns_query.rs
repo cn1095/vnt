@@ -235,73 +235,56 @@ fn check_for_redirect(domain: &String) -> anyhow::Result<Option<String>> {
     } else {
         format!("http://{}", domain)
     };
+    // 解析 URL
+    let uri = match Uri::try_from(url.as_str()) {
+        Ok(u) => u,
+        Err(e) => {
+            println!("解析地址失败: {}", e);
+            return Ok(None);
+         }
+     };
 
-    let mut count = 0; // 重定向次数计数器
-    let mut last_redirect_url: Option<String> = None; // 记录最后一个重定向的 URL
+    let mut response_body = Vec::new();
 
-    loop {
-        count += 1;
-        if count > 3 {
-            println!("重定向次数超过 3 次，跳过");
-            return Ok(last_redirect_url);
+    // 发送 HTTP 请求
+    let response = match Request::new(&uri)
+         .timeout(Duration::from_secs(20))
+         .redirect_policy(RedirectPolicy::Limit(0))
+         .send(&mut response_body)
+    {
+        Ok(resp) => {
+             println!("HTTP Status Code: {}", resp.status_code());
+             resp
         }
-
-        // 解析 URL
-        let uri = match Uri::try_from(url.as_str()) {
-            Ok(u) => {
-                u
-            }
-            Err(e) => {
-                println!("解析地址失败: {}", e);
-                return Ok(last_redirect_url);
-            }
-        };
-
-        let mut response_body = Vec::new();
-
-        // 发送 HTTP 请求
-        let response = match Request::new(&uri)
-            .timeout(Duration::from_secs(10))
-            .redirect_policy(RedirectPolicy::Limit(0))
-            .send(&mut response_body)
-        {
-            Ok(resp) => {
-                println!("HTTP Status Code: {}", resp.status_code());
-                resp
-            }
-            Err(e) => {
-                return Ok(last_redirect_url);
-            }
-        };
-
-        let body_str = String::from_utf8_lossy(&response_body);
-        let cleaned_body = body_str.replace('\n', "").replace('\r', ""); 
-        println!("Response Body: {}", cleaned_body);
-        // 处理 3XX 重定向
-        if response.status_code().is_redirect() {
-            if let Some(location) = response.headers().get("Location") {
-                url = location.to_string().trim_end_matches('/').to_string();
-                last_redirect_url = Some(url.clone()); // 更新最后的重定向地址
-                println!("Location: {}", url);
-                continue;
-            } else {
-                return Ok(last_redirect_url);
-            }
+        Err(_) => {
+            return Ok(None);
         }
+    };
 
-        // 处理 200 响应
-        else if response.status_code().is_success() {
-            for line in body_str.lines() {
-                let trimmed = line.trim();
-                if parse_host_port(trimmed) {
-                    println!("text: {}", trimmed);
-                    return Ok(Some(trimmed.to_string()));
-                }
-            }
-            return Ok(last_redirect_url);
+    let body_str = String::from_utf8_lossy(&response_body);
+    let cleaned_body = body_str.replace('\n', "").replace('\r', ""); 
+    println!("Response Body: {}", cleaned_body);
+    // 处理 3XX 重定向
+    if response.status_code().is_redirect() {
+        if let Some(location) = response.headers().get("Location") {
+            url = location.to_string().trim_end_matches('/').to_string();
+            println!("Location: {}", url);
+            return Ok(Some(url));
         }
-        return Ok(last_redirect_url);
     }
+
+    // 处理 200 响应
+    if response.status_code().is_success() {
+         for line in body_str.lines() {
+            let trimmed = line.trim();
+            if parse_host_port(trimmed) {
+                 println!("text: {}", trimmed);
+                 return Ok(Some(trimmed.to_string()));
+            }
+         }
+            return Ok(None);
+    }
+    Ok(None)
 }
 
 /// 去掉 http:// 或 https:// 前缀
