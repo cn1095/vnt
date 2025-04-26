@@ -169,7 +169,7 @@ impl Config {
                 }
                 Err(e) => {
                     log::error!("DNS query failed: {}", e);
-                    println!("Failed to choose address: {}", e);
+                    println!("DNS query failed: {}", e);
                 }
             }
         }
