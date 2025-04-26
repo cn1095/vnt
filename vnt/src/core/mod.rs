@@ -153,12 +153,14 @@ impl Config {
                             server_address = resolved_address; 
                         }
                         Err(e) => {
-                            log::info!("Failed to choose address: {}", e);
+                            log::error!("Failed to choose address: {}", e);
+                            println!("Failed to choose address: {}", e);
                         }
                     }
                 }
                 Err(e) => {
-                    log::info!("DNS query failed: {}", e);
+                    log::error!("DNS query failed: {}", e);
+                    println!("DNS query failed: {}", e);
                 }
             }
         }
