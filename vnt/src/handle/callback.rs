@@ -309,7 +309,7 @@ pub trait VntCallback: Clone + Send + Sync + 'static {
     }
     #[cfg(not(feature = "integrated_tun"))]
     fn create_device(&self, _info: DeviceConfig) {}
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     #[cfg(feature = "integrated_tun")]
     fn generate_tun(&self, _info: DeviceConfig) -> usize {
         0
