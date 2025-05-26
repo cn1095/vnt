@@ -22,7 +22,7 @@ impl VntSocketTrait for socket2::Socket {
         Ok(())
     }
 }
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 impl VntSocketTrait for socket2::Socket {
     fn set_ip_unicast_if(&self, _interface: &LocalInterface) -> anyhow::Result<()> {
         Ok(())
