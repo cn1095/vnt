@@ -375,7 +375,7 @@ impl<Call: VntCallback, Device: DeviceWrite> ServerPacketHandler<Call, Device> {
                                     self.callback.error(e);
                                 }
                             }
-                            #[cfg(target_os = "android")]
+                            #[cfg(any(target_os = "android", target_os = "ios"))]
                             {
                                 let device_config = crate::handle::callback::DeviceConfig::new(
                                     self.config_info.mtu,
