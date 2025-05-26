@@ -9,9 +9,9 @@ mod linux;
 #[cfg(target_os = "linux")]
 pub use linux::Device;
 
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 mod android;
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 pub use android::Device;
 
 #[cfg(target_os = "macos")]
