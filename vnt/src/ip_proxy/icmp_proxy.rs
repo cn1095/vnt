@@ -40,7 +40,7 @@ impl IcmpProxy {
             Some(socket2::Protocol::ICMPV4),
         )
         .context("new Socket RAW ICMPV4 failed")?;
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let icmp_socket = socket2::Socket::new(
             socket2::Domain::IPV4,
             socket2::Type::DGRAM,
@@ -94,12 +94,12 @@ async fn icmp_proxy(
     let mut buf = [0u8; 65535 - 20 - 8];
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
     let start = 12;
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     let start = 12 + 20;
     loop {
         let (len, addr) = icmp_socket.recv_from(&mut buf[start..]).await?;
         if let IpAddr::V4(peer_ip) = addr.ip() {
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             {
                 let buf = &mut buf[12..];
                 // ipv4 头部20字节
