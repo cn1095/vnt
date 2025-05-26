@@ -83,7 +83,7 @@ impl Config {
         ports: Option<Vec<u16>>,
         first_latency: bool,
         #[cfg(feature = "integrated_tun")]
-        #[cfg(not(target_os = "android"))]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         device_name: Option<String>,
         use_channel_type: UseChannelType,
         packet_loss_rate: Option<f64>,
@@ -197,7 +197,7 @@ impl Config {
             ports,
             first_latency,
             #[cfg(feature = "integrated_tun")]
-            #[cfg(not(target_os = "android"))]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             device_name,
             use_channel_type,
             packet_loss_rate,
