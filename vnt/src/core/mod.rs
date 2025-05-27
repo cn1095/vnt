@@ -41,7 +41,7 @@ pub struct Config {
     pub ports: Option<Vec<u16>>,
     pub first_latency: bool,
     #[cfg(feature = "integrated_tun")]
-    //#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
     pub device_name: Option<String>,
     pub use_channel_type: UseChannelType,
     //控制丢包率
