@@ -206,7 +206,7 @@ impl Config {
             ports,
             first_latency,
             #[cfg(feature = "integrated_tun")]
-            #[cfg(any(target_os = "android", target_os = "ios"))]
+            #[cfg(any(target_os = "android", target_os = "ios", target_os = "linux"))]
             device_name,
             use_channel_type,
             packet_loss_rate,
